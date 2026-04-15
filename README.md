@@ -1,69 +1,102 @@
-#### Features
-1. Automatic DB Backup Job
-2. Automatically create a zip copy of backup file
-3. Automatically push the zip backup file to Azure Storage
-4. Automatically push the zip backup file to AWS S3 Bucket
-5. Automatic Index Maintenance
-6. Shrik database to 10% and rebuild index after shrink
+# DataCrud.DBOps
 
-#### How to user it
- * Register as windows task scheduler
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![.NET](https://img.shields.io/badge/.NET-9.0%20%7C%20Standard%202.0%20%7C%204.8-blue)](https://dotnet.microsoft.com/)
 
-#### Getting Start
-* Clone this repository<br/>
-* Open the solution in Visual Studio (2019 recommended). <br/>
-* Open <code>DatabaseJobs.Client/App.config</code> file. <br/>
-* Check the following appSettings key value and change as your need  <br/>
+**DataCrud.DBOps** is a high-performance, resilient database maintenance and job orchestration library for .NET. Designed to bridge the gap between modern cloud-native applications and legacy enterprise systems, it provides a unified interface for database backups, index optimization, and cloud synchronization.
+
+---
+
+## 🚀 Key Features
+
+*   **Intelligent Maintenance**: Automated database shrinking and index management (Reorganize/Rebuild) to ensure peak performance.
+*   **Resilient Backups**: Automated full-database backup workflows with high-ratio compression (Zip).
+*   **Multi-Cloud Sync**: Native, high-performance integration with **AWS S3** and **Azure Blob Storage**.
+*   **Persistent Tracking**: Integrated **LiteDB** storage engine for reliable, local job history and state management.
+*   **Cross-Platform Heritage**: First-class support for **ASP.NET Core (DI-friendly)** and **Legacy .NET Framework (OWIN/Console)**.
+
+---
+
+## 🛠 Supported Ecosystem
+
+| Category | Supported Providers |
+| :--- | :--- |
+| **Databases** | SQL Server, PostgreSQL, MySQL, Oracle, MongoDB |
+| **Cloud Storage** | AWS S3, Azure Blob Storage |
+| **Target Frameworks** | .NET 9.0, .NET Standard 2.0, .NET Framework 4.7+ |
+| **Persistence** | LiteDB (Default Job Storage) |
+
+---
+
+## 💻 Getting Started
+
+### Modern .NET (ASP.NET Core)
+
+Install the core and your preferred provider via NuGet:
+```bash
+dotnet add package DataCrud.DBOps.AspNetCore
+dotnet add package DataCrud.DBOps.SqlServer
 ```
- <add key="ServerName" value=".\SQLEXPRESS" />    <!--database server name-->
- <add key="EnableShrink" value="true" /> <!--enable index reorganize before taking backup, rebild index after shrink-->
- <add key="EnableIndexMaintenance" value="true"/> <!--enable index reorganize before taking backup, rebild index after shrink-->
- <add key="BackupAllDatabases" value="true" />   <!--backup all database of the provided server except system databases-->
- <add key="BackupDatabases" value="AuditorDb,UrlShortenDb" />    <!--existing database names of the provided server-->
- <add key="UseRootBackupDirectory" value="false" />    <!--backup will be stored on the application hosted base directory-->
- <add key="BackupDirectoryPath" value="C:\temp\backups\" />   <!--define a specific backup location. it will activate when UseRootBackupDirectory is false-->
- <add key="RemoveBackupAfterXDays" value="5" />   <!--remove older backup after n days, empty for disable this rule--> 
- <add key="RemoveBakFileAfterZip" value="true" /> <!--remove .bak file after zip completion-->
- <add key="PushToAzureStorage" value="true" />   <!--true for push the backup zip file to your azure storage blob--> 
- <!--aws s3 bucket config-->
- <add key="PushToAwsS3Bucket" value="false"/>
- <add key="AwsAccessKey" value="*your aws access key*"/>
- <add key="AwsSecretKey" value="*your aws secret key*"/>
- <add key="S3BucketName" value="*your bucket name*"/>
- <add key="S3BucketRegion" value="ap-southeast-1"/>
+
+Configure the services in `Program.cs`:
+```csharp
+builder.Services.AddDatabaseOps(options =>
+{
+    options.ConnectionString = "YourConnectionString";
+    options.EnableBackupJob(cron: "0 0 * * *"); // Daily midnight backup
+    options.EnableIndexMaintenance = true;
+    
+    // Multi-Cloud Sync
+    options.AddAwsPush("bucket-name", "region");
+});
 ```
-* Configur your azure storage connection string (`only if you make PushToAzureStorage is true`)  `<add name="AzureStroage" connectionString="DefaultEndpointsProtocol=https;AccountName=yourAzureStorageAccountName;AccountKey=yourAzureStroageAccountKey;EndpointSuffix=core.windows.net" /> `
-* All are set now. Build and run the program. <br/>
-* Publish the client project and up it on your virtual machine and register as a windows task scheduler
 
+### Legacy .NET Framework (OWIN)
 
-#### Rebuild Index
-Rebuild all index of a database in SQL Server <br/>
-Command: `Exec sp_msforeachtable 'SET QUOTED_IDENTIFIER ON; ALTER INDEX ALL ON ? REBUILD'`
-
-#### Reorganize Index
-Reorganize all index of a database in SQL Server <br/>
-Command: `Exec sp_msforeachtable 'SET QUOTED_IDENTIFIER ON; ALTER INDEX ALL ON ? REBUILD'`
-
-#### Delete Old IIS Logs by Script
+For legacy applications using OWIN, register the middleware in your `Startup` class:
+```csharp
+public void Configuration(IAppBuilder app)
+{
+    app.UseDBOps(options =>
+    {
+        options.ConnectionString = "YourConnectionString";
+        options.AuthUsername = "admin";
+        options.AuthPassword = "securePassword";
+        options.EnableAuth = true;
+    });
+}
 ```
-sLogFolder = "c:\inetpub\logs\LogFiles"
-iMaxAge = 30   'in days
-Set objFSO = CreateObject("Scripting.FileSystemObject")
-set colFolder = objFSO.GetFolder(sLogFolder)
-For Each colSubfolder in colFolder.SubFolders
-        Set objFolder = objFSO.GetFolder(colSubfolder.Path)
-        Set colFiles = objFolder.Files
-        For Each objFile in colFiles
-                iFileAge = now-objFile.DateCreated
-                if iFileAge > (iMaxAge+1)  then
-                        objFSO.deletefile objFile, True
-                end if
-        Next
-Next
+
+---
+
+## ⚙️ Configuration (AppSettings)
+
+For standalone console applications or legacy implementations, use `App.config`:
+
+| Key | Description | Default |
+| :--- | :--- | :--- |
+| `ServerName` | Target SQL Server instance | `.\SQLEXPRESS` |
+| `BackupAllDatabases` | Process all non-system databases | `true` |
+| `BackupDirectoryPath` | Local path for backup storage | `C:\temp\backups\` |
+| `RemoveBakFileAfterZip` | Delete uncompressed `.bak` file after zipping | `true` |
+| `PushToAwsS3Bucket` | Enable AWS S3 synchronization | `false` |
+
+---
+
+## 📜 Professional Services & Support
+
+DataCrud.DBOps is designed for enterprise-grade stability. For advanced automation such as **Index Maintenance** across specialized environments, use our optimized SQL procedures:
+
+```sql
+-- Global Index Rebuild
+EXEC sp_msforeachtable 'SET QUOTED_IDENTIFIER ON; ALTER INDEX ALL ON ? REBUILD'
 ```
-* Save the file into C:\inetpub\logs\_Deletion.vbs
-* Create a task scheduler using this script
-* Follow https://docs.microsoft.com/en-us/iis/manage/provisioning-and-managing-iis/managing-iis-log-file-storage#03
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**. See the `LICENSE` file for details.
+
 
 

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>DataCrud.DBOps.SqlServer</AssemblyName>
+    <RootNamespace>DataCrud.DBOps.SqlServer</RootNamespace>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.0.0</Version>
+    <Authors>DataCrud.com</Authors>
+    <Description>SQL Server provider for DataCrud.DBOps. Includes Backup, Shrink, and Reindex operations using SMO.</Description>
+    <PackageTags>database maintenance sqlserver backup shrink reindex datacrud dbops</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.1" />
+    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="170.18.0" />
+    <PackageReference Include="Dapper" Version="2.0.123" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataCrud.DBOps.Core\DataCrud.DBOps.Core.csproj" />
+  </ItemGroup>
+
+</Project>

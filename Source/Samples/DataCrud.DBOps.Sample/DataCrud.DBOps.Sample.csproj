@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net48</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings Condition="'$(TargetFramework)' != 'net48'">enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <UserSecretsId>datacrud-dbops-sample-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\DataCrud.DBOps.AspNetCore\DataCrud.DBOps.AspNetCore.csproj" Condition="'$(TargetFramework)' == 'net9.0'" />
+    <ProjectReference Include="..\..\DataCrud.DBOps.Core\DataCrud.DBOps.Core.csproj" />
+    <ProjectReference Include="..\..\DataCrud.DBOps.SqlServer\DataCrud.DBOps.SqlServer.csproj" />
+    <ProjectReference Include="..\..\DataCrud.DBOps.Postgres\DataCrud.DBOps.Postgres.csproj" />
+    <ProjectReference Include="..\..\DataCrud.DBOps.MySql\DataCrud.DBOps.MySql.csproj" />
+    <ProjectReference Include="..\..\DataCrud.DBOps.MongoDb\DataCrud.DBOps.MongoDb.csproj" />
+    <ProjectReference Include="..\..\DataCrud.DBOps.Oracle\DataCrud.DBOps.Oracle.csproj" />
+  </ItemGroup>
+
+</Project>

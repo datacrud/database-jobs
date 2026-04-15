@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>DataCrud.DBOps.AspNetCore</RootNamespace>
+    <AssemblyName>DataCrud.DBOps.AspNetCore</AssemblyName>
+    <OutputType>Library</OutputType>
+    <Version>1.0.0</Version>
+    <Authors>DataCrud.com</Authors>
+    <Description>ASP.NET Core Middleware for DataCrud.DBOps. Provides an embedded self-hosted dashboard for database maintenance. Supports .NET 6.0 and up.</Description>
+    <PackageTags>database;maintenance;aspnetcore;middleware;dashboard;htmx;alpinejs;datacrud;dbops</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/SabbirAhamed/database-jobs</PackageProjectUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataCrud.DBOps.Core\DataCrud.DBOps.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>
+

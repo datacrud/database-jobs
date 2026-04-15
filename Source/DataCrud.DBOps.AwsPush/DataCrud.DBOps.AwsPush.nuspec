@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package >
+  <metadata>
+    <id>DataCrud.DBOps.AwsPush</id>
+    <version>1.1.0</version>
+    <title>DataCrud.DBOps.AwsPush</title>
+    <authors>Md. Sabbir Ahamed</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <!-- <icon>icon.png</icon> -->
+    <projectUrl>https://github.com/sabbiryan/database-jobs/</projectUrl>
+    <description>Database backup file upload to aws s3 package</description>
+    <releaseNotes>First nuget package release</releaseNotes>
+    <copyright>$copyright$</copyright>
+    <tags>DataCrud.DBOps DatabaseBackup IndexRebuild IndexReorganize BackupUploadToAzureStorage BackupploadToAwsS3</tags>
+    <dependencies>
+      <group targetFramework=".NETFramework4.7.2" />
+    </dependencies>
+  </metadata>
+</package>

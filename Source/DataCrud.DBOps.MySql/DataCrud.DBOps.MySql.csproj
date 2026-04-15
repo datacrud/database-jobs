@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>DataCrud.DBOps.MySql</AssemblyName>
+    <RootNamespace>DataCrud.DBOps.MySql</RootNamespace>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.0.0</Version>
+    <Authors>DataCrud.com</Authors>
+    <Description>MySQL provider for DataCrud.DBOps. Uses MySqlConnector for commands and MySqlBackup.NET for managed backups.</Description>
+    <PackageTags>database maintenance mysql backup shrink reindex datacrud dbops</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MySqlConnector" Version="2.2.7" />
+    <PackageReference Include="MySqlBackup.Net.MySqlConnector" Version="2.3.8" />
+    <PackageReference Include="Dapper" Version="2.0.123" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataCrud.DBOps.Core\DataCrud.DBOps.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -2,3 +2,4 @@
 **/**/bin/
 **/**/obj/
 *.nupkg
+/Source/Samples/DataCrud.DBOps.Sample/jobs_dbops.db

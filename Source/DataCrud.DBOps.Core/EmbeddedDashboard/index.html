@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataCrud.DBOps Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
+        .tab-active { @apply bg-indigo-800 border-b-2 border-white; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans" 
+      x-data="{ 
+        activeTab: 'history', 
+        selectedDb: 'MainDB', 
+        databases: [], 
+        config: { providerName: 'Loading...', capabilities: [] },
+        init() {
+            fetch('api/config').then(r => r.json()).then(d => this.config = d);
+            fetch('api/databases').then(r => r.json()).then(d => {
+                this.databases = d;
+                if(d.length > 0) this.selectedDb = d[0];
+            });
+        }
+      }">
+    <div class="min-h-screen flex flex-col">
+        <!-- Navigation -->
+        <nav class="bg-indigo-700 text-white p-4 shadow-lg sticky top-0 z-50">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-white/20 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0-2.21 3.58-4 8-4s8 1.79 8 4m0 5c0 2.21-3.58 4-8 4s-8-1.79-8-4"></path></svg>
+                    </div>
+                    <div>
+                        <span class="text-xl font-bold tracking-tight block">DataCrud.DBOps</span>
+                        <span class="text-xs text-indigo-200" x-text="'Provider: ' + config.providerName"></span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <div class="flex space-x-1">
+                        <button @click="activeTab = 'history'" :class="activeTab === 'history' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">History</button>
+                        <button @click="activeTab = 'jobs'" :class="activeTab === 'jobs' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Jobs</button>
+                        <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Settings</button>
+                    </div>
+                    
+                    <!-- DB Selector -->
+                    <div class="relative flex items-center space-x-2 text-sm">
+                        <span class="text-indigo-200">Database:</span>
+                        <select x-model="selectedDb" class="bg-indigo-800 text-white border-none rounded-md px-3 py-1.5 focus:ring-2 focus:ring-white/50 cursor-pointer outline-none transition hover:bg-indigo-900">
+                            <template x-for="db in databases" :key="db">
+                                <option :value="db" x-text="db"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="container mx-auto p-6 flex-grow">
+            
+            <!-- History Section -->
+            <section x-show="activeTab === 'history'" x-cloak x-transition>
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">Execution History</h2>
+                        <p class="text-sm text-gray-500">Recent maintenance activities across your databases.</p>
+                    </div>
+                    <button hx-get="api/history" hx-target="#history-table" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center shadow-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Refresh
+                    </button>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Database</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table" hx-get="api/history" hx-trigger="load" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="5" class="px-6 py-10 text-center text-gray-400 italic">Connecting to engine...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Jobs Section -->
+            <section x-show="activeTab === 'jobs'" x-cloak x-transition>
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Maintenance Jobs</h2>
+                    <p class="text-sm text-gray-500">Trigger manual maintenance tasks for <span class="font-semibold text-indigo-600" x-text="selectedDb"></span>.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Backup Card -->
+                    <div x-show="config.capabilities.includes('Backup')" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-4">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2">Database Backup</h3>
+                        <p class="text-gray-600 text-sm mb-4">Create full snapshots for the selected database and manage retention records.</p>
+                        <button hx-post="api/jobs/backup" 
+                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb"
+                                class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition shadow-sm active:transform active:scale-95">Run Backup</button>
+                    </div>
+
+                    <!-- Index Card -->
+                    <div x-show="config.capabilities.includes('Reindex')" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                        <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center mb-4">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2">Index Maintenance</h3>
+                        <p class="text-gray-600 text-sm mb-4">Reorganize or Rebuild indexes to optimize search and retrieval performance.</p>
+                        <button hx-post="api/jobs/index" 
+                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb"
+                                class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition shadow-sm active:transform active:scale-95">Run Reindex</button>
+                    </div>
+
+                    <!-- Shrink Card -->
+                    <div x-show="config.capabilities.includes('Shrink')" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                        <div class="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mb-4">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2">Space Management</h3>
+                        <p class="text-gray-600 text-sm mb-4">Shrink database files or execute cleanup commands to reclaim unused disk space.</p>
+                        <button hx-post="api/jobs/shrink" 
+                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb"
+                                class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition shadow-sm active:transform active:scale-95">Run Shrink</button>
+                    </div>
+                </div>
+                
+                <!-- If No Capabilities -->
+                 <div x-show="config.capabilities.length === 0" class="p-10 text-center gray-500 italic bg-gray-100 rounded-xl">
+                    No supported maintenance tasks for this provider.
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section x-show="activeTab === 'settings'" x-cloak x-transition>
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">System Settings</h2>
+                    <p class="text-sm text-gray-500">Configuration and engine status for DataCrud.DBOps.</p>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Provider Status -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                            <span class="text-sm font-semibold text-gray-700">Database Provider</span>
+                            <span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-md uppercase">Active</span>
+                        </div>
+                        <div class="p-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 uppercase mb-1">Provider Name</label>
+                                    <p class="text-lg font-bold text-indigo-700" x-text="config.providerName"></p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 uppercase mb-1">Supported Capabilities</label>
+                                    <div class="flex flex-wrap gap-2 mt-1">
+                                        <template x-for="cap in config.capabilities" :key="cap">
+                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100" x-text="cap"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Engine Status -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Storage Card -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <div class="flex items-center space-x-3 mb-4">
+                                <div class="p-2 bg-orange-100 text-orange-600 rounded-lg">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <h3 class="font-bold text-gray-800">Job Storage</h3>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Storage Engine</span>
+                                    <span class="font-medium" x-text="config.storageType"></span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Status</span>
+                                    <span class="text-green-600 font-medium">Connected</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security Card -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <div class="flex items-center space-x-3 mb-4">
+                                <div class="p-2 bg-red-100 text-red-600 rounded-lg">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                </div>
+                                <h3 class="font-bold text-gray-800">Access Security</h3>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Authentication</span>
+                                    <span class="font-medium" x-text="config.securityEnabled ? 'Basic Auth Enabled' : 'Disabled (Public)'"></span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Mode</span>
+                                    <span class="text-indigo-600 font-medium">Local/Network</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Library Info -->
+                    <div class="text-center p-8 border-2 border-dashed border-gray-100 rounded-2xl">
+                        <p class="text-gray-400 text-sm italic">You are running DataCrud.DBOps v1.0.0 Stable</p>
+                        <a href="https://datacrud.com/dbops" target="_blank" class="text-indigo-600 text-sm font-medium hover:underline mt-2 inline-block">Check for updates</a>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="mt-auto p-6 text-center text-gray-500 text-xs border-t border-gray-100 bg-white">
+            <p>&copy; 2026 DataCrud.DBOps Library. A DataCrud.com Project.</p>
+            <p class="mt-1">Built with HTMX, Alpine.js, and Modern .NET Architecture.</p>
+        </footer>
+    </div>
+</body>
+</html>
