@@ -13,14 +13,18 @@ namespace DataCrud.DBOps.MySql
     {
         private readonly string _connectionString;
         private readonly IJobStorage _storage;
+        private readonly bool _discoverDatabases;
 
         public string ProviderName => "MySQL";
+        public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.Backup | ProviderCapabilities.Reindex;
 
-        public MySqlProvider(string connectionString, IJobStorage storage)
+        public MySqlProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true)
         {
             _connectionString = connectionString;
             _storage = storage;
+            _discoverDatabases = discover;
+            DisplayName = displayName ?? ProviderName;
         }
 
         public async Task BackupAsync(string databaseName, string backupDirectory)
@@ -86,6 +90,42 @@ namespace DataCrud.DBOps.MySql
             {
                 await FailHistoryAsync(history, ex);
                 throw;
+            }
+        }
+
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        {
+            try
+            {
+                var builder = new MySqlConnectionStringBuilder(_connectionString);
+
+                if (!_discoverDatabases)
+                {
+                    var db = !string.IsNullOrEmpty(builder.Database) ? builder.Database : "mysql";
+                    return new[] { db };
+                }
+
+                using (var conn = new MySqlConnection(_connectionString))
+                {
+                    await conn.OpenAsync();
+                    var databases = await conn.QueryAsync<string>("SHOW DATABASES");
+                    
+                    // Filter out system databases
+                    var result = new System.Collections.Generic.List<string>();
+                    foreach (var db in databases)
+                    {
+                        if (db != "information_schema" && db != "performance_schema" && db != "mysql" && db != "sys")
+                        {
+                            result.Add(db);
+                        }
+                    }
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching MySQL databases: {ex.Message}");
+                return new string[] { "MainDB (Offline)" };
             }
         }
 

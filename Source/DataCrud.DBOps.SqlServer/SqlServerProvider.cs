@@ -15,14 +15,18 @@ namespace DataCrud.DBOps.SqlServer
     {
         private readonly string _connectionString;
         private readonly IJobStorage _storage;
+        private readonly bool _discoverDatabases;
 
         public string ProviderName => "SQL Server";
+        public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.All;
 
-        public SqlServerProvider(string connectionString, IJobStorage storage)
+        public SqlServerProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true)
         {
             _connectionString = connectionString;
             _storage = storage;
+            _discoverDatabases = discover;
+            DisplayName = displayName ?? ProviderName;
         }
 
         public async Task BackupAsync(string databaseName, string backupDirectory)
@@ -98,6 +102,41 @@ namespace DataCrud.DBOps.SqlServer
             {
                 await FailHistoryAsync(history, ex);
                 throw;
+            }
+        }
+
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+
+                if (!_discoverDatabases)
+                {
+                    var db = !string.IsNullOrEmpty(builder.InitialCatalog) ? builder.InitialCatalog : "master";
+                    return new[] { db };
+                }
+
+                return await Task.Run(() =>
+                {
+                    var server = ConnectToServer(builder);
+                    var databases = new System.Collections.Generic.List<string>();
+
+                    foreach (Database db in server.Databases)
+                    {
+                        if (!db.IsSystemObject && !db.IsDatabaseSnapshot)
+                        {
+                            databases.Add(db.Name);
+                        }
+                    }
+
+                    return (System.Collections.Generic.IEnumerable<string>)databases;
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching SQL Server databases: {ex.Message}");
+                return new string[] { "MainDB (Offline)" };
             }
         }
 

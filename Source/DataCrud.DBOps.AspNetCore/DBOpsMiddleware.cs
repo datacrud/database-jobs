@@ -173,42 +173,55 @@ namespace DataCrud.DBOps.AspNetCore
 
         private async Task HandleConfigApi(HttpContext context)
         {
-            var manager = context.RequestServices.GetRequiredService<MaintenanceManager>();
-            var provider = (IDatabaseProvider)typeof(MaintenanceManager)
-                .GetField("_provider", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.GetValue(manager);
-
-            if (provider == null)
-            {
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                return;
-            }
-
-            var capabilitiesList = new System.Collections.Generic.List<string>();
-            if (provider.Capabilities.HasFlag(ProviderCapabilities.Backup)) capabilitiesList.Add("Backup");
-            if (provider.Capabilities.HasFlag(ProviderCapabilities.Shrink)) capabilitiesList.Add("Shrink");
-            if (provider.Capabilities.HasFlag(ProviderCapabilities.Reindex)) capabilitiesList.Add("Reindex");
-
             var config = new
             {
-                providerName = provider.ProviderName,
-                capabilities = capabilitiesList,
-                storageType = _options.Storage?.GetType().Name ?? "LiteDB", // Default if null
+                providers = _options.Providers.Select((p, index) => new { 
+                    index, 
+                    name = p.ProviderName,
+                    displayName = p.DisplayName,
+                    capabilities = new {
+                        backup = p.Capabilities.HasFlag(ProviderCapabilities.Backup),
+                        shrink = p.Capabilities.HasFlag(ProviderCapabilities.Shrink),
+                        reindex = p.Capabilities.HasFlag(ProviderCapabilities.Reindex)
+                    }
+                }),
+                storageType = _options.Storage?.GetType().Name ?? "LiteDB",
                 securityEnabled = _options.Security.Enabled
             };
 
             context.Response.ContentType = "application/json";
-            await JsonSerializer.SerializeAsync(context.Response.Body, config);
+            await context.Response.WriteAsJsonAsync(config);
+        }
+
+        private System.Collections.Generic.List<string> GetCapabilitiesList(IDatabaseProvider provider)
+        {
+            var list = new System.Collections.Generic.List<string>();
+            if (provider.Capabilities.HasFlag(ProviderCapabilities.Backup)) list.Add("Backup");
+            if (provider.Capabilities.HasFlag(ProviderCapabilities.Shrink)) list.Add("Shrink");
+            if (provider.Capabilities.HasFlag(ProviderCapabilities.Reindex)) list.Add("Reindex");
+            return list;
         }
 
         private async Task HandleDatabasesApi(HttpContext context)
         {
-            // In a real scenario, this would fetch from the provider or config
-            // For now, we return a mock list or the 'MainDB'
-            var databases = new[] { "MainDB", "AuditDB", "LogDB" }; // TODO: Make dynamic
-            
-            context.Response.ContentType = "application/json";
-            await JsonSerializer.SerializeAsync(context.Response.Body, databases);
+            var providerIndexStr = context.Request.Query["providerIndex"].FirstOrDefault();
+            if (int.TryParse(providerIndexStr, out int index) && index >= 0 && index < _options.Providers.Count)
+            {
+                var provider = _options.Providers[index];
+                var databases = await provider.GetDatabasesAsync();
+                
+                context.Response.ContentType = "application/json";
+                await JsonSerializer.SerializeAsync(context.Response.Body, databases);
+            }
+            else
+            {
+                // Default to first provider if none specified
+                var provider = _options.Providers.FirstOrDefault();
+                var databases = provider != null ? await provider.GetDatabasesAsync() : new string[] { "No Providers Configured" };
+                
+                context.Response.ContentType = "application/json";
+                await JsonSerializer.SerializeAsync(context.Response.Body, databases);
+            }
         }
 
         private async Task HandleJobActionApi(HttpContext context, string subPath)
@@ -222,15 +235,25 @@ namespace DataCrud.DBOps.AspNetCore
             var manager = context.RequestServices.GetRequiredService<MaintenanceManager>();
             var jobType = subPath.Split('/').Last();
             var dbName = context.Request.Query["db"].FirstOrDefault() ?? "MainDB";
+            var providerIndexStr = context.Request.Query["providerIndex"].FirstOrDefault();
+            int.TryParse(providerIndexStr, out int providerIndex);
 
             // Run in background 
             _ = Task.Run(async () => {
                 try {
+                    // Resolve the specific provider from the options
+                    var provider = _options.Providers.Count > providerIndex ? _options.Providers[providerIndex] : _options.Providers.FirstOrDefault();
+                    if (provider == null) return;
+
+                    // Create a manager for this specific provider run
+                    var storage = context.RequestServices.GetRequiredService<IJobStorage>();
+                    var instanceManager = new MaintenanceManager(storage, provider);
+
                     switch (jobType.ToLower())
                     {
-                        case "backup": await manager.RunAsync(dbName, true, false, false, true, "C:\\Backups", 7); break;
-                        case "shrink": await manager.RunAsync(dbName, false, true, false, false); break;
-                        case "index": await manager.RunAsync(dbName, false, false, true, false); break;
+                        case "backup": await instanceManager.RunAsync(dbName, true, false, false, true, "C:\\Backups", 7); break;
+                        case "shrink": await instanceManager.RunAsync(dbName, false, true, false, false); break;
+                        case "index": await instanceManager.RunAsync(dbName, false, false, true, false); break;
                     }
                 } catch (Exception ex) {
                     Console.WriteLine($"Background job execution failed for {jobType} on {dbName}: {ex.Message}");

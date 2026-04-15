@@ -16,15 +16,41 @@
 <body class="bg-gray-50 text-gray-900 font-sans" 
       x-data="{ 
         activeTab: 'history', 
-        selectedDb: 'MainDB', 
+        selectedDb: '', 
+        selectedProviderIndex: 0,
         databases: [], 
-        config: { providerName: 'Loading...', capabilities: [] },
-        init() {
-            fetch('api/config').then(r => r.json()).then(d => this.config = d);
-            fetch('api/databases').then(r => r.json()).then(d => {
-                this.databases = d;
-                if(d.length > 0) this.selectedDb = d[0];
-            });
+        providers: [],
+        config: { storageType: 'Loading...', securityEnabled: false },
+        
+        get activeProvider() {
+            return this.providers[this.selectedProviderIndex] || { name: 'None', displayName: 'None', capabilities: { backup: false, shrink: false, reindex: false } };
+        },
+
+        async init() {
+            await this.loadConfig();
+            await this.loadDatabases();
+        },
+
+        async loadConfig() {
+            const resp = await fetch('api/config');
+            const data = await resp.json();
+            this.providers = data.providers;
+            this.config.storageType = data.storageType;
+            this.config.securityEnabled = data.securityEnabled;
+        },
+
+        async loadDatabases() {
+            const resp = await fetch(`api/databases?providerIndex=${this.selectedProviderIndex}`);
+            const data = await resp.json();
+            this.databases = data;
+            if(data.length > 0) this.selectedDb = data[0];
+            else this.selectedDb = '';
+        },
+
+        async changeProvider(index) {
+            this.selectedProviderIndex = index;
+            await this.loadDatabases();
+            // Refresh history if needed (handled by HTMX button usually, but we could trigger it here)
         }
       }">
     <div class="min-h-screen flex flex-col">
@@ -37,7 +63,7 @@
                     </div>
                     <div>
                         <span class="text-xl font-bold tracking-tight block">DataCrud.DBOps</span>
-                        <span class="text-xs text-indigo-200" x-text="'Provider: ' + config.providerName"></span>
+                        <span class="text-xs text-indigo-200" x-text="'Active Engine: ' + config.storageType"></span>
                     </div>
                 </div>
                 <div class="flex items-center space-x-6">
@@ -47,12 +73,25 @@
                         <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Settings</button>
                     </div>
                     
+                    <!-- Server Selector -->
+                    <div class="relative flex items-center space-x-2 text-sm border-l border-white/20 pl-6 ml-2">
+                        <span class="text-indigo-200">Server:</span>
+                        <select x-model="selectedProviderIndex" @change="changeProvider($event.target.value)" class="bg-indigo-900/50 text-white text-sm rounded-lg border border-indigo-500/30 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none">
+                        <template x-for="p in providers" :key="p.index">
+                            <option :value="p.index" x-text="p.displayName"></option>
+                        </template>
+                    </select>
+                    </div>
+
                     <!-- DB Selector -->
                     <div class="relative flex items-center space-x-2 text-sm">
                         <span class="text-indigo-200">Database:</span>
                         <select x-model="selectedDb" class="bg-indigo-800 text-white border-none rounded-md px-3 py-1.5 focus:ring-2 focus:ring-white/50 cursor-pointer outline-none transition hover:bg-indigo-900">
                             <template x-for="db in databases" :key="db">
                                 <option :value="db" x-text="db"></option>
+                            </template>
+                            <template x-if="databases.length === 0">
+                                <option value="">No databases found</option>
                             </template>
                         </select>
                     </div>
@@ -103,44 +142,44 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Backup Card -->
-                    <div x-show="config.capabilities.includes('Backup')" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                    <div x-show="activeProvider.capabilities && activeProvider.capabilities.backup" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
                         <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-4">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
                         </div>
                         <h3 class="text-lg font-bold mb-2">Database Backup</h3>
                         <p class="text-gray-600 text-sm mb-4">Create full snapshots for the selected database and manage retention records.</p>
                         <button hx-post="api/jobs/backup" 
-                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb"
+                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb; event.detail.parameters['providerIndex'] = selectedProviderIndex"
                                 class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition shadow-sm active:transform active:scale-95">Run Backup</button>
                     </div>
 
                     <!-- Index Card -->
-                    <div x-show="config.capabilities.includes('Reindex')" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                    <div x-show="activeProvider.capabilities && activeProvider.capabilities.reindex" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
                         <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center mb-4">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                         </div>
                         <h3 class="text-lg font-bold mb-2">Index Maintenance</h3>
                         <p class="text-gray-600 text-sm mb-4">Reorganize or Rebuild indexes to optimize search and retrieval performance.</p>
                         <button hx-post="api/jobs/index" 
-                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb"
+                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb; event.detail.parameters['providerIndex'] = selectedProviderIndex"
                                 class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition shadow-sm active:transform active:scale-95">Run Reindex</button>
                     </div>
 
                     <!-- Shrink Card -->
-                    <div x-show="config.capabilities.includes('Shrink')" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                    <div x-show="activeProvider.capabilities && activeProvider.capabilities.shrink" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
                         <div class="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mb-4">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                         </div>
                         <h3 class="text-lg font-bold mb-2">Space Management</h3>
                         <p class="text-gray-600 text-sm mb-4">Shrink database files or execute cleanup commands to reclaim unused disk space.</p>
                         <button hx-post="api/jobs/shrink" 
-                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb"
+                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb; event.detail.parameters['providerIndex'] = selectedProviderIndex"
                                 class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition shadow-sm active:transform active:scale-95">Run Shrink</button>
                     </div>
                 </div>
                 
                 <!-- If No Capabilities -->
-                 <div x-show="config.capabilities.length === 0" class="p-10 text-center gray-500 italic bg-gray-100 rounded-xl">
+                 <div x-show="providers.length > 0 && activeProvider.capabilities && !activeProvider.capabilities.backup && !activeProvider.capabilities.shrink && !activeProvider.capabilities.reindex" class="p-10 text-center gray-500 italic bg-gray-100 rounded-xl">
                     No supported maintenance tasks for this provider.
                 </div>
             </section>
@@ -163,13 +202,19 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-400 uppercase mb-1">Provider Name</label>
-                                    <p class="text-lg font-bold text-indigo-700" x-text="config.providerName"></p>
+                                    <p class="text-lg font-bold text-indigo-700" x-text="activeProvider.name"></p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-400 uppercase mb-1">Supported Capabilities</label>
                                     <div class="flex flex-wrap gap-2 mt-1">
-                                        <template x-for="cap in config.capabilities" :key="cap">
-                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100" x-text="cap"></span>
+                                        <template x-if="activeProvider.capabilities?.backup">
+                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100">Backup</span>
+                                        </template>
+                                        <template x-if="activeProvider.capabilities?.shrink">
+                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100">Shrink</span>
+                                        </template>
+                                        <template x-if="activeProvider.capabilities?.reindex">
+                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100">Reindex</span>
                                         </template>
                                     </div>
                                 </div>

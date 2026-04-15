@@ -12,40 +12,46 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Register DataCrud.DBOps with ALL providers
 IJobStorage storage = new LiteDbJobStorage("jobs_dbops.db");
 
+// Help the user by checking common local DB instances
+string GetValidConnectionString(string key, string fallback) {
+    var val = builder.Configuration.GetConnectionString(key);
+    if (!string.IsNullOrEmpty(val)) return val;
+    
+    // Quick ping check for local server
+    // Note: In real scenarios, you might use a more robust check
+    return fallback;
+}
+
 builder.Services.AddDBOps(options => 
 {
-    // Dashboard Path
     options.DashboardPath = "/db-ops";
-
-    // Storage (common for all providers)
     options.Storage = storage;
 
-    // SQL Server Provider
-    options.Providers.Add(new SqlServerProvider(
-        connectionString: builder.Configuration.GetConnectionString("SqlServer") ?? "Server=(localdb)\\mssqllocaldb;Database=MasterSample;Trusted_Connection=True;", 
-        storage: storage));
+    // 1. SQL Server - Full Discovery Mode
+    var sqlConn = GetValidConnectionString("SqlServer", "Server=.\\SQLEXPRESS;Database=master;Trusted_Connection=True;TrustServerCertificate=True;");
+    options.Providers.Add(new SqlServerProvider(sqlConn, storage, "Local SQL Server", discover: true));
     
-    // PostgreSQL Provider
-    options.Providers.Add(new PostgresProvider(
-        connectionString: builder.Configuration.GetConnectionString("Postgres") ?? "Host=localhost;Database=postgres;Username=postgres;Password=password", 
-        storage: storage));
+    // 2. SQL Server - Single Database Mode (e.g., Audit Database)
+    // Even if it points to the same server, discovery=false forces focus on ONLY this DB
+    var auditConn = GetValidConnectionString("AuditDb", "Server=.\\SQLEXPRESS;Database=AuditLogDB;Trusted_Connection=True;TrustServerCertificate=True;");
+    options.Providers.Add(new SqlServerProvider(auditConn, storage, "Audit Database", discover: false));
+    
+    // 3. PostgreSQL - Full Discovery Mode
+    var pgConn = GetValidConnectionString("Postgres", "Host=localhost;Database=postgres;Username=postgres;Password=password");
+    options.Providers.Add(new PostgresProvider(pgConn, storage, "Local PostgreSQL", discover: true));
 
-    // MySQL Provider
-    options.Providers.Add(new MySqlProvider(
-        connectionString: builder.Configuration.GetConnectionString("MySql") ?? "Server=localhost;Database=mysql;Uid=root;Pwd=password;", 
-        storage: storage));
+    // 4. MySQL Provider
+    var mySqlConn = GetValidConnectionString("MySql", "Server=localhost;Database=mysql;Uid=root;Pwd=password;");
+    options.Providers.Add(new MySqlProvider(mySqlConn, storage, "Local MySQL", discover: true));
 
-    // MongoDB Provider
-    options.Providers.Add(new MongoDbProvider(
-        connectionString: builder.Configuration.GetConnectionString("Mongo") ?? "mongodb://localhost:27017", 
-        storage: storage));
+    // 5. MongoDB Provider
+    var mongoConn = GetValidConnectionString("Mongo", "mongodb://localhost:27017");
+    options.Providers.Add(new MongoDbProvider(mongoConn, storage, "Local MongoDB", discover: true));
 
-    // Oracle Provider
-    options.Providers.Add(new OracleProvider(
-        connectionString: builder.Configuration.GetConnectionString("Oracle") ?? "Data Source=localhost:1521/XEPDB1;User Id=system;Password=password;", 
-        storage: storage));
+    // 6. Oracle Provider
+    var oracleConn = GetValidConnectionString("Oracle", "Data Source=localhost:1521/XEPDB1;User Id=system;Password=password;");
+    options.Providers.Add(new OracleProvider(oracleConn, storage, "Oracle Instance", discover: true));
 
-    // Dashboard Security
     options.Security.Username = "admin";
     options.Security.Password = "admin123";
 });

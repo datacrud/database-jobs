@@ -16,15 +16,19 @@ namespace DataCrud.DBOps.Postgres
         private readonly string _connectionString;
         private readonly IJobStorage _storage;
         private readonly string _pgDumpPath;
+        private readonly bool _discoverDatabases;
 
         public string ProviderName => "Postgres";
+        public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.All;
 
-        public PostgresProvider(string connectionString, IJobStorage storage, string pgDumpPath = "pg_dump")
+        public PostgresProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true, string pgDumpPath = "pg_dump")
         {
             _connectionString = connectionString;
             _storage = storage;
             _pgDumpPath = pgDumpPath;
+            _discoverDatabases = discover;
+            DisplayName = displayName ?? ProviderName;
         }
 
         public async Task BackupAsync(string databaseName, string backupDirectory)
@@ -99,6 +103,36 @@ namespace DataCrud.DBOps.Postgres
             {
                 await FailHistoryAsync(history, ex);
                 throw;
+            }
+        }
+
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        {
+            try
+            {
+                var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+                
+                if (!_discoverDatabases)
+                {
+                    var db = !string.IsNullOrEmpty(builder.Database) ? builder.Database : "postgres";
+                    return new[] { db };
+                }
+
+                using (var conn = new NpgsqlConnection(_connectionString))
+                {
+                    // Query for non-template databases
+                    var databases = await conn.QueryAsync<string>(@"
+                        SELECT datname 
+                        FROM pg_database 
+                        WHERE datistemplate = false 
+                          AND datname != 'postgres';");
+                    return databases;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error fetching Postgres databases");
+                return new string[] { "MainDB (Offline)" };
             }
         }
 

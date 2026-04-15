@@ -10,6 +10,8 @@ using DataCrud.DBOps.Core.Models;
 using DataCrud.DBOps.Core.Storage;
 using DataCrud.DBOps.Core.Providers;
 using Microsoft.Owin;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace DataCrud.DBOps.AspNet
 {
@@ -165,36 +167,53 @@ namespace DataCrud.DBOps.AspNet
 
         private async Task HandleConfigApi(IOwinContext context)
         {
-            // Pick first provider as default for configuration display
-            var provider = _options.Providers.FirstOrDefault();
-            if (provider == null)
-            {
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                return;
-            }
-
-            var capabilitiesList = new System.Collections.Generic.List<string>();
-            if (provider.Capabilities.HasFlag(ProviderCapabilities.Backup)) capabilitiesList.Add("Backup");
-            if (provider.Capabilities.HasFlag(ProviderCapabilities.Shrink)) capabilitiesList.Add("Shrink");
-            if (provider.Capabilities.HasFlag(ProviderCapabilities.Reindex)) capabilitiesList.Add("Reindex");
-
             var config = new
             {
-                providerName = provider.ProviderName,
-                capabilities = capabilitiesList,
+                providers = _options.Providers.Select((p, index) => new { 
+                    index, 
+                    name = p.ProviderName,
+                    displayName = p.DisplayName,
+                    capabilities = new {
+                        backup = p.Capabilities.HasFlag(ProviderCapabilities.Backup),
+                        shrink = p.Capabilities.HasFlag(ProviderCapabilities.Shrink),
+                        reindex = p.Capabilities.HasFlag(ProviderCapabilities.Reindex)
+                    }
+                }),
                 storageType = _options.Storage?.GetType().Name ?? "LiteDB",
                 securityEnabled = _options.Security.Enabled
             };
 
+            var settings = new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
+            var json = JsonConvert.SerializeObject(config, settings);
+            
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(Newtonsoft.Json.JsonConvert.SerializeObject(config));
+            await context.Response.WriteAsync(json);
+        }
+
+        private System.Collections.Generic.List<string> GetCapabilities(IDatabaseProvider provider)
+        {
+            var capabilitiesList = new System.Collections.Generic.List<string>();
+            if (provider.Capabilities.HasFlag(ProviderCapabilities.Backup)) capabilitiesList.Add("Backup");
+            if (provider.Capabilities.HasFlag(ProviderCapabilities.Shrink)) capabilitiesList.Add("Shrink");
+            if (provider.Capabilities.HasFlag(ProviderCapabilities.Reindex)) capabilitiesList.Add("Reindex");
+            return capabilitiesList;
         }
 
         private async Task HandleDatabasesApi(IOwinContext context)
         {
-            // Mock or fetch from first provider
-            var databases = new[] { "MainDB", "AuditDB", "LogDB" };
-            
+            var providerIndexStr = context.Request.Query["providerIndex"];
+            int.TryParse(providerIndexStr, out int providerIndex);
+
+            if (providerIndex < 0 || providerIndex >= _options.Providers.Count)
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                await context.Response.WriteAsync("Invalid provider index");
+                return;
+            }
+
+            var provider = _options.Providers[providerIndex];
+            var databases = await provider.GetDatabasesAsync();
+
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsync(Newtonsoft.Json.JsonConvert.SerializeObject(databases));
         }
@@ -207,20 +226,29 @@ namespace DataCrud.DBOps.AspNet
                 return;
             }
 
-            var storage = _options.Storage ?? new LiteDbJobStorage("jobs_dbops.db");
-            // For simple sample/legacy support, we pick the first provider if available
-            var provider = _options.Providers.FirstOrDefault();
-            
-            if (provider == null)
+            var providerIndexStr = context.Request.Query["providerIndex"];
+            int.TryParse(providerIndexStr, out int providerIndex);
+
+            if (providerIndex < 0 || providerIndex >= _options.Providers.Count)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                await context.Response.WriteAsync("No database provider registered.");
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                await context.Response.WriteAsync("Invalid provider index");
                 return;
             }
 
+            var databaseName = context.Request.Query["database"];
+            if (string.IsNullOrEmpty(databaseName))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                await context.Response.WriteAsync("Database name is required");
+                return;
+            }
+
+            var storage = _options.Storage ?? new LiteDbJobStorage("jobs_dbops.db");
+            var provider = _options.Providers[providerIndex];
+            
             var manager = new MaintenanceManager(storage: storage, provider: provider);
             var jobType = subPath.Split('/').Last();
-            var databaseName = provider.ProviderName == "SQLServer" ? "master" : "postgres"; // Placeholder logic 
 
             Task.Run(async () => {
                 try {
@@ -228,7 +256,7 @@ namespace DataCrud.DBOps.AspNet
                     {
                         case "backup": await manager.RunAsync(databaseName, true, false, false, false, "C:\\Backups"); break;
                         case "shrink": await manager.RunAsync(databaseName, false, true, false, false); break;
-                        case "index": await manager.RunAsync(databaseName, false, false, true, false); break;
+                        case "reindex": await manager.RunAsync(databaseName, false, false, true, false); break;
                     }
                 } catch { }
             });

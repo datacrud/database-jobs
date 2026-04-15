@@ -15,16 +15,18 @@ namespace DataCrud.DBOps.MongoDb
     {
         private readonly string _connectionString;
         private readonly IJobStorage _storage;
-        private readonly string _mongoDumpPath;
+        private readonly bool _discoverDatabases;
 
         public string ProviderName => "MongoDB";
+        public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.Backup | ProviderCapabilities.Shrink;
 
-        public MongoDbProvider(string connectionString, IJobStorage storage, string mongoDumpPath = "mongodump")
+        public MongoDbProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true)
         {
             _connectionString = connectionString;
             _storage = storage;
-            _mongoDumpPath = mongoDumpPath;
+            _discoverDatabases = discover;
+            DisplayName = displayName ?? ProviderName;
         }
 
         public async Task BackupAsync(string databaseName, string backupDirectory)
@@ -38,7 +40,7 @@ namespace DataCrud.DBOps.MongoDb
 
                 // CliWrap to run mongodump
                 // Example: mongodump --uri="mongodb://user:pass@host:port" --db=dbname --out=backupdir
-                var result = await Cli.Wrap(_mongoDumpPath)
+                var result = await Cli.Wrap("mongodump")
                     .WithArguments(args => args
                         .Add("--uri").Add(_connectionString)
                         .Add("--db").Add(databaseName)
@@ -92,6 +94,39 @@ namespace DataCrud.DBOps.MongoDb
             // Modern MongoDB reindexing involves rebuilding indexes explicitly.
             // For now, we'll mark it as Not Supported by the provider capabilities.
             return Task.CompletedTask;
+        }
+
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        {
+            try
+            {
+                var url = new MongoUrl(_connectionString);
+
+                if (!_discoverDatabases)
+                {
+                    var db = !string.IsNullOrEmpty(url.DatabaseName) ? url.DatabaseName : "admin";
+                    return new[] { db };
+                }
+
+                var client = new MongoClient(url);
+                var databases = await client.ListDatabaseNamesAsync();
+                var result = new System.Collections.Generic.List<string>();
+                
+                await databases.ForEachAsync(db => 
+                {
+                    if (db != "admin" && db != "local" && db != "config")
+                    {
+                        result.Add(db);
+                    }
+                });
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching MongoDB databases: {ex.Message}");
+                return new string[] { "MainDB (Offline)" };
+            }
         }
 
         private async Task<JobHistory> CreateHistoryAsync(string dbName, JobType type, string message)

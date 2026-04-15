@@ -16,15 +16,19 @@ namespace DataCrud.DBOps.Oracle
         private readonly string _connectionString;
         private readonly IJobStorage _storage;
         private readonly string _expdpPath;
+        private readonly bool _discoverDatabases;
 
         public string ProviderName => "Oracle";
+        public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.All;
 
-        public OracleProvider(string connectionString, IJobStorage storage, string expdpPath = "expdp")
+        public OracleProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true, string expdpPath = "expdp")
         {
             _connectionString = connectionString;
             _storage = storage;
             _expdpPath = expdpPath;
+            _discoverDatabases = discover;
+            DisplayName = displayName ?? ProviderName;
         }
 
         public async Task BackupAsync(string databaseName, string backupDirectory)
@@ -109,6 +113,32 @@ namespace DataCrud.DBOps.Oracle
             {
                 await FailHistoryAsync(history, ex);
                 throw;
+            }
+        }
+
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        {
+            try
+            {
+                var builder = new OracleConnectionStringBuilder(_connectionString);
+
+                if (!_discoverDatabases)
+                {
+                    return new[] { builder.UserID };
+                }
+
+                using (var conn = new OracleConnection(_connectionString))
+                {
+                    await conn.OpenAsync();
+                    // In Oracle, 'database' is usually the instance. 
+                    var dbName = await conn.QueryFirstOrDefaultAsync<string>("SELECT name FROM v$database");
+                    return new string[] { dbName ?? builder.UserID };
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error fetching Oracle databases");
+                return new string[] { new OracleConnectionStringBuilder(_connectionString).UserID };
             }
         }
 
