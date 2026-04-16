@@ -11,6 +11,19 @@
         [x-cloak] { display: none !important; }
         .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
         .tab-active { @apply bg-indigo-800 border-b-2 border-white; }
+        .loader {
+            border-top-color: #4f46e5;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans" 
@@ -20,6 +33,8 @@
         selectedProviderIndex: 0,
         databases: [], 
         providers: [],
+        loadingDatabases: false,
+        loadingJobs: false,
         config: { storageType: 'Loading...', securityEnabled: false },
         
         get activeProvider() {
@@ -40,11 +55,20 @@
         },
 
         async loadDatabases() {
-            const resp = await fetch(`api/databases?providerIndex=${this.selectedProviderIndex}`);
-            const data = await resp.json();
-            this.databases = data;
-            if(data.length > 0) this.selectedDb = data[0];
-            else this.selectedDb = '';
+            this.loadingDatabases = true;
+            try {
+                const resp = await fetch(`api/databases?providerIndex=${this.selectedProviderIndex}`);
+                if (!resp.ok) throw new Error('Failed to fetch');
+                const data = await resp.json();
+                this.databases = data;
+                if(data.length > 0) this.selectedDb = data[0];
+                else this.selectedDb = '';
+            } catch (err) {
+                this.databases = ['Connection Failed'];
+                this.selectedDb = 'Connection Failed';
+            } finally {
+                this.loadingDatabases = false;
+            }
         },
 
         async changeProvider(index) {
@@ -52,7 +76,26 @@
             await this.loadDatabases();
             // Refresh history if needed (handled by HTMX button usually, but we could trigger it here)
         }
-      }">
+      }"
+      @htmx:before-request.window="if(event.detail.path.includes('api/jobs')) loadingJobs = true"
+      @htmx:after-request.window="if(event.detail.path.includes('api/jobs')) loadingJobs = false">
+    
+    <!-- Global Busy Overlay -->
+    <div x-show="loadingDatabases || loadingJobs" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[100] flex items-center justify-center bg-indigo-900/40 backdrop-blur-md"
+         x-cloak>
+        <div class="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-xs w-full mx-4">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-16 w-16 mb-4"></div>
+            <h3 class="text-xl font-bold text-gray-800" x-text="loadingDatabases ? 'Discovering Databases' : 'Processing Job'"></h3>
+            <p class="text-center text-gray-500 text-sm mt-2" x-text="loadingDatabases ? 'Talking to the server to find all accessible databases...' : 'Performing the requested maintenance task. Please wait.'"></p>
+        </div>
+    </div>
     <div class="min-h-screen flex flex-col">
         <!-- Navigation -->
         <nav class="bg-indigo-700 text-white p-4 shadow-lg sticky top-0 z-50">
@@ -86,11 +129,14 @@
                     <!-- DB Selector -->
                     <div class="relative flex items-center space-x-2 text-sm">
                         <span class="text-indigo-200">Database:</span>
-                        <select x-model="selectedDb" class="bg-indigo-800 text-white border-none rounded-md px-3 py-1.5 focus:ring-2 focus:ring-white/50 cursor-pointer outline-none transition hover:bg-indigo-900">
+                        <select x-model="selectedDb" :disabled="loadingDatabases" :class="loadingDatabases ? 'opacity-50 cursor-not-allowed' : ''" class="bg-indigo-800 text-white border-none rounded-md px-3 py-1.5 focus:ring-2 focus:ring-white/50 cursor-pointer outline-none transition hover:bg-indigo-900 min-w-[150px]">
+                            <template x-if="loadingDatabases">
+                                <option>Loading Databases...</option>
+                            </template>
                             <template x-for="db in databases" :key="db">
                                 <option :value="db" x-text="db"></option>
                             </template>
-                            <template x-if="databases.length === 0">
+                            <template x-if="!loadingDatabases && databases.length === 0">
                                 <option value="">No databases found</option>
                             </template>
                         </select>

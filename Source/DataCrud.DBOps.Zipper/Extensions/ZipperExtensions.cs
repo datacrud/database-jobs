@@ -2,9 +2,11 @@ namespace DataCrud.DBOps.Zipper.Extensions
 {
     public static class ZipperExtensions
     {
-        public static string BakToZip(this string fileName)
+        public static string ToZip(this string fileName)
         {
-            return string.IsNullOrEmpty(fileName) ? fileName : fileName.Replace(".bak", ".zip");
+            if (string.IsNullOrEmpty(fileName)) return fileName;
+            var extension = System.IO.Path.GetExtension(fileName);
+            return string.IsNullOrEmpty(extension) ? fileName + ".zip" : fileName.Replace(extension, ".zip");
         }
     }
 }

@@ -1,111 +1,117 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
-using DataCrud.DBOps.Shared;
-using DataCrud.DBOps.Shared.Enums;
+using Amazon.S3.Util;
+using System.Threading.Tasks;
 using DataCrud.DBOps.Shared.Extensions;
 using Serilog;
 
 namespace DataCrud.DBOps.AwsPush
 {
-    
-    public static class AwsS3ObjectManager
+    public class AwsS3ObjectManager
     {
-        private static readonly string BucketName = AppSettings.S3BucketName;
-        private static readonly RegionEndpoint BucketRegion = RegionEndpoint.GetBySystemName(AppSettings.S3BucketRegion);
         private const string FolderPath = "backups/databases/";
+        private readonly string _bucketName;
+        private readonly RegionEndpoint _bucketRegion;
+        private readonly string _accessKey;
+        private readonly string _secretKey;
+        private readonly bool _isEnabled;
 
-        private static IAmazonS3 _amazonS3;
-
-        public static void Push(string filePath)
+        public AwsS3ObjectManager(string accessKey, string secretKey, string bucketName, string region, bool isEnabled)
         {
-            if (!AppSettings.PushToAwsS3Bucket) return;
+            _accessKey = accessKey;
+            _secretKey = secretKey;
+            _bucketName = bucketName;
+            _bucketRegion = string.IsNullOrEmpty(region) ? RegionEndpoint.USEast1 : RegionEndpoint.GetBySystemName(region);
+            _isEnabled = isEnabled;
+        }
+
+        private IAmazonS3 GetS3Client()
+        {
+            if (string.IsNullOrEmpty(_accessKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                throw new InvalidOperationException("AWS credentials are not configured.");
+            }
+            return new AmazonS3Client(new BasicAWSCredentials(_accessKey, _secretKey), _bucketRegion);
+        }
+
+        public async Task PushAsync(string filePath)
+        {
+            if (!_isEnabled) return;
 
             Console.WriteLine($"Pushing {filePath} to aws s3...");
 
-            _amazonS3 = new AmazonS3Client(new BasicAWSCredentials(AppSettings.AwsAccessKey, AppSettings.AwsSecretKey), BucketRegion);
-
-            var keyName = $"{FolderPath}{Path.GetFileName(filePath)}";
-
-            try
-            {
-                var request = new PutObjectRequest
-                {
-                    BucketName = BucketName,
-                    Key = keyName,
-                    FilePath = filePath,
-                    ContentType = keyName.GetContentType()
-                };
-
-                request.Metadata.Add("x-amz-meta-title", "database backup");
-
-
-                _amazonS3.EnsureBucketExists(BucketName);
-
-                if (_amazonS3.DoesS3BucketExist(BucketName))
-                {
-                    PutObjectResponse response = _amazonS3.PutObject(request);
-                }
-
-            }
-            catch (AmazonS3Exception e)
-            {
-                Console.WriteLine(
-                    "Error encountered ***. Message:'{0}' when writing an object"
-                    , e.Message);
-
-                Log.Error(e.ToString());
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(
-                    "Unknown encountered on server. Message:'{0}' when writing an object"
-                    , e.Message);
-
-                Log.Error(e.ToString());
-            }
-
-        }
-
-
-
-        public static void Delete(string filePath)
-        {
-            try
+            using (var s3Client = GetS3Client())
             {
                 var keyName = $"{FolderPath}{Path.GetFileName(filePath)}";
 
-                _amazonS3 = new AmazonS3Client(new BasicAWSCredentials(AppSettings.AwsAccessKey, AppSettings.AwsSecretKey), BucketRegion);
-
-                var deleteObjectRequest = new DeleteObjectRequest
+                try
                 {
-                    BucketName = BucketName,
-                    Key = keyName
-                };
+                    var request = new PutObjectRequest
+                    {
+                        BucketName = _bucketName,
+                        Key = keyName,
+                        FilePath = filePath,
+                        ContentType = keyName.GetContentType()
+                    };
 
-                Console.WriteLine($"Deleting {keyName}...");
+                    request.Metadata.Add("x-amz-meta-title", "database backup");
 
-                if (_amazonS3.DoesS3BucketExist(BucketName))
+                    if (!await AmazonS3Util.DoesS3BucketExistV2Async(s3Client, _bucketName))
+                    {
+                        await s3Client.PutBucketAsync(_bucketName);
+                    }
+
+                    await s3Client.PutObjectAsync(request);
+                }
+                catch (AmazonS3Exception e)
                 {
-                    _amazonS3.DeleteObject(deleteObjectRequest);
+                    Console.WriteLine($"Error encountered on AWS S3 server. Message:'{e.Message}' when writing an object");
+                    Log.Error(e, "AWS S3 Error during Push");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Unknown error encountered on server. Message:'{e.Message}' when writing an object");
+                    Log.Error(e, "Unknown error during AWS Push");
+                }
+            }
+        }
+
+        public async Task DeleteAsync(string filePath)
+        {
+            if (!_isEnabled) return;
+
+            try
+            {
+                using (var s3Client = GetS3Client())
+                {
+                    var keyName = $"{FolderPath}{Path.GetFileName(filePath)}";
+
+                    var deleteObjectRequest = new DeleteObjectRequest
+                    {
+                        BucketName = _bucketName,
+                        Key = keyName
+                    };
+
+                    Console.WriteLine($"Deleting {keyName} from AWS S3...");
+
+                    if (await AmazonS3Util.DoesS3BucketExistV2Async(s3Client, _bucketName))
+                    {
+                        await s3Client.DeleteObjectAsync(deleteObjectRequest);
+                    }
                 }
             }
             catch (AmazonS3Exception e)
             {
-                Console.WriteLine("Error encountered on server. Message:'{0}' when deleting an object", e.Message);
+                Console.WriteLine($"Error encountered on server during AWS delete. Message:'{e.Message}'");
             }
             catch (Exception e)
             {
-                Console.WriteLine("Unknown encountered on server. Message:'{0}' when deleting an object", e.Message);
+                Console.WriteLine($"Unknown error encountered on server during AWS delete. Message:'{e.Message}'");
             }
         }
     }
 }
-

@@ -27,9 +27,9 @@ namespace DataCrud.DBOps.MySql
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
         {
-            var fileName = Path.Combine(backupDirectory, $"{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.sql");
+            var fileName = Path.Combine(backupDirectory, $"my_{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.sql");
             var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting MySQL backup to {fileName}");
 
             try
@@ -50,6 +50,7 @@ namespace DataCrud.DBOps.MySql
                 }
 
                 await CompleteHistoryAsync(history, "MySQL backup completed successfully.");
+                return fileName;
             }
             catch (Exception ex)
             {
@@ -93,7 +94,7 @@ namespace DataCrud.DBOps.MySql
             }
         }
 
-        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
@@ -105,10 +106,11 @@ namespace DataCrud.DBOps.MySql
                     return new[] { db };
                 }
 
-                using (var conn = new MySqlConnection(_connectionString))
+                builder.ConnectionTimeout = 3; // Fast fail for discovery
+                using (var conn = new MySqlConnection(builder.ConnectionString))
                 {
-                    await conn.OpenAsync();
-                    var databases = await conn.QueryAsync<string>("SHOW DATABASES");
+                    await conn.OpenAsync(cancellationToken);
+                    var databases = await conn.QueryAsync<string>(new CommandDefinition("SHOW DATABASES", cancellationToken: cancellationToken));
                     
                     // Filter out system databases
                     var result = new System.Collections.Generic.List<string>();

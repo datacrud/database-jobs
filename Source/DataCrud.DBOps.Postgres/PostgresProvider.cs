@@ -31,9 +31,9 @@ namespace DataCrud.DBOps.Postgres
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
         {
-            var fileName = Path.Combine(backupDirectory, $"{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.sql");
+            var fileName = Path.Combine(backupDirectory, $"pg_{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.sql");
             var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting Postgres backup to {fileName}");
 
             try
@@ -57,6 +57,7 @@ namespace DataCrud.DBOps.Postgres
                     .ExecuteAsync();
 
                 await CompleteHistoryAsync(history, "Postgres backup completed successfully.");
+                return fileName;
             }
             catch (Exception ex)
             {
@@ -106,7 +107,7 @@ namespace DataCrud.DBOps.Postgres
             }
         }
 
-        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
@@ -118,7 +119,8 @@ namespace DataCrud.DBOps.Postgres
                     return new[] { db };
                 }
 
-                using (var conn = new NpgsqlConnection(_connectionString))
+                builder.Timeout = 3; // Fast fail for discovery
+                using (var conn = new NpgsqlConnection(builder.ConnectionString))
                 {
                     // Query for non-template databases
                     var databases = await conn.QueryAsync<string>(@"

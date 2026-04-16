@@ -5,6 +5,7 @@ using CliWrap;
 using DataCrud.DBOps.Core.Models;
 using DataCrud.DBOps.Core.Providers;
 using DataCrud.DBOps.Core.Storage;
+using DataCrud.DBOps.Core.Providers;
 using Oracle.ManagedDataAccess.Client;
 using Dapper;
 using Serilog;
@@ -31,17 +32,18 @@ namespace DataCrud.DBOps.Oracle
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
         {
-            var fileName = $"{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.dmp";
-            var history = await CreateHistoryAsync(databaseName, JobType.Backup, "Starting Oracle Data Pump export (expdp).");
+            var fileName = $"ora_{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.dmp";
+            var fullPath = Path.Combine(backupDirectory, fileName);
+            var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting Oracle Data Pump export (expdp). Output: {fileName}");
 
             try
             {
                 var builder = new OracleConnectionStringBuilder(_connectionString);
                 
                 // expdp usually requires a DIRECTORY object defined in Oracle.
-                // For a 'lite' implementation, we assume the environment is set up or use simple export.
+                // We assume DATA_PUMP_DIR is configured on the server.
                 var result = await Cli.Wrap(_expdpPath)
                     .WithArguments(args => args
                         .Add($"{builder.UserID}/{builder.Password}@{builder.DataSource}")
@@ -52,6 +54,7 @@ namespace DataCrud.DBOps.Oracle
                     .ExecuteAsync();
 
                 await CompleteHistoryAsync(history, $"Oracle export completed successfully. DUMPFILE: {fileName}");
+                return fullPath; // Return the path where we expect it to be
             }
             catch (Exception ex)
             {
@@ -116,7 +119,7 @@ namespace DataCrud.DBOps.Oracle
             }
         }
 
-        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
@@ -127,11 +130,20 @@ namespace DataCrud.DBOps.Oracle
                     return new[] { builder.UserID };
                 }
 
+                // OracleConnection doesn't have a simple Timeout property on ConnectionBuilder in all versions,
+                // but we can pass a 5-second timeout in the string or use the connection attempt with cancellation.
+                if (_connectionString.IndexOf("Connection Timeout", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    // Add a default small timeout for discovery
+                    var timeoutStr = _connectionString.Contains("?") ? "&Connection Timeout=5" : ";Connection Timeout=5";
+                    // Note: Oracle CS format varies, for discovery we'll just try to open with cancellation.
+                }
+
                 using (var conn = new OracleConnection(_connectionString))
                 {
-                    await conn.OpenAsync();
+                    await conn.OpenAsync(cancellationToken);
                     // In Oracle, 'database' is usually the instance. 
-                    var dbName = await conn.QueryFirstOrDefaultAsync<string>("SELECT name FROM v$database");
+                    var dbName = await conn.QueryFirstOrDefaultAsync<string>(new CommandDefinition("SELECT name FROM v$database", cancellationToken: cancellationToken));
                     return new string[] { dbName ?? builder.UserID };
                 }
             }

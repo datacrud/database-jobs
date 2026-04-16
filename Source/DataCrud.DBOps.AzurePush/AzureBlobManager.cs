@@ -1,10 +1,8 @@
 using System;
-using System.Configuration;
 using System.IO;
+using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using DataCrud.DBOps.Shared;
-using DataCrud.DBOps.Shared.Enums;
 using DataCrud.DBOps.Shared.Extensions;
 
 namespace DataCrud.DBOps.AzurePush
@@ -14,71 +12,59 @@ namespace DataCrud.DBOps.AzurePush
         private const string BackupBlobContainerName = "backups";
         private const string BackupBlobContainerFolderName = "databases";
 
+        private readonly string _connectionString;
+        private readonly bool _isEnabled;
 
-        private static BlobContainerClient CloudBlobContainer()
+        public AzureBlobManager(string connectionString, bool isEnabled)
         {
-            ConnectionStringSettingsCollection connectionStringSettings = ConfigurationManager.ConnectionStrings;
-            string storageConnection = connectionStringSettings[1].ConnectionString;
+            _connectionString = connectionString;
+            _isEnabled = isEnabled;
+        }
 
-            BlobServiceClient blobServiceClient = new BlobServiceClient(storageConnection);
+        private async Task<BlobContainerClient> GetContainerClientAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_connectionString))
+            {
+                throw new InvalidOperationException("Azure Storage Connection String is not configured.");
+            }
 
-            //create a container
+            BlobServiceClient blobServiceClient = new BlobServiceClient(_connectionString);
             BlobContainerClient blobContainerClient = blobServiceClient.GetBlobContainerClient(BackupBlobContainerName);
 
-            //create a container if it is not already exists
-            blobContainerClient.CreateIfNotExists();
-
-            //set permission to public
-            blobContainerClient.SetAccessPolicy(PublicAccessType.Blob);
-
+            await blobContainerClient.CreateIfNotExistsAsync();
+            await blobContainerClient.SetAccessPolicyAsync(PublicAccessType.Blob);
 
             return blobContainerClient;
         }
 
-
-        public static void Push(string filePath)
+        public async Task PushAsync(string filePath)
         {
-            if(!AppSettings.PushToAzureStorage) return;
+            if (!_isEnabled) return;
 
             Console.WriteLine($"Pushing {filePath} to azure blob storage...");
 
-            var blobContainer = CloudBlobContainer();
-
-            
+            var containerClient = await GetContainerClientAsync();
             var fileName = Path.GetFileName(filePath);
-
-
             string blobName = $"{BackupBlobContainerFolderName}/{fileName}";
 
-            //get Blob reference
+            BlobClient blobClient = containerClient.GetBlobClient(blobName);
 
-            BlobClient blob = blobContainer.GetBlobClient(blobName);
-
-            blob.Upload(filePath, new BlobHttpHeaders()
+            await blobClient.UploadAsync(filePath, new BlobHttpHeaders()
             {
                 ContentType = fileName.GetContentType()
             });
-
         }
 
-
-        public static void Delete(string filePath)
+        public async Task DeleteAsync(string filePath)
         {
-            if (!AppSettings.PushToAzureStorage) return;
+            if (!_isEnabled) return;
 
-            var blobContainer = CloudBlobContainer();
-
+            var containerClient = await GetContainerClientAsync();
             var fileName = Path.GetFileName(filePath);
-
             string blobName = $"{BackupBlobContainerFolderName}/{fileName}";
 
-            //get blob reference
-
-            BlobClient blob = blobContainer.GetBlobClient(blobName);
-            blob.DeleteIfExists();
-            
+            BlobClient blobClient = containerClient.GetBlobClient(blobName);
+            await blobClient.DeleteIfExistsAsync();
         }
-
     }
 }
-

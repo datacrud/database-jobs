@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using DataCrud.DBOps.AzurePush;
 using DataCrud.DBOps.AwsPush;
 using DataCrud.DBOps.Shared;
@@ -10,14 +11,18 @@ using DataCrud.DBOps.Zipper.Extensions;
 using Microsoft.SqlServer.Management.Common;
 using Microsoft.SqlServer.Management.Smo;
 using Serilog;
+using System.Configuration;
 
 namespace DataCrud.DBOps.Backup
 {
     public class BackupBuilder
     {
-        public static void GenerateBackups(Server server, List<Database> databases)
+        public static async Task GenerateBackupsAsync(Server server, List<Database> databases)
         {
             Console.WriteLine("Starting generate backups...");
+
+            // Use ConfigurationManager for legacy support here as per current architecture
+            var azureConnectionString = ConfigurationManager.AppSettings["AzureStorageConnectionString"];
 
             foreach (var database in databases)
             {
@@ -26,13 +31,11 @@ namespace DataCrud.DBOps.Backup
                     //Create backup
                     var backupFileName = CreateFullDbBackup(server, database);
 
-                    
                     //Create zip of backup
-                    var zip = ZipBuilder.Zip(backupFileName.BakToZip(), new List<string>()
+                    var zip = ZipBuilder.Zip(backupFileName.ToZip(), new List<string>()
                     {
                         backupFileName
                     });
-
 
                     //Clean .bak file
                     if (AppSettings.RemoveBakFileAfterZip)
@@ -40,24 +43,33 @@ namespace DataCrud.DBOps.Backup
                         BackupCleaner.CleanLocalBackup(backupFileName);
                     }
 
-
                     //Push to azure storage
-                    AzureBlobManager.Push(zip);
+                    if (AppSettings.PushToAzureStorage)
+                    {
+                        var azureManager = new AzureBlobManager(azureConnectionString, AppSettings.PushToAzureStorage);
+                        await azureManager.PushAsync(zip);
+                    }
 
                     //Push to aws s3
-                    AwsS3ObjectManager.Push(zip);
-
+                    if (AppSettings.PushToAwsS3Bucket)
+                    {
+                        var awsManager = new AwsS3ObjectManager(
+                            AppSettings.AwsAccessKey,
+                            AppSettings.AwsSecretKey,
+                            AppSettings.S3BucketName,
+                            AppSettings.S3BucketRegion,
+                            AppSettings.PushToAwsS3Bucket);
+                        await awsManager.PushAsync(zip);
+                    }
                 }
                 catch (Exception e)
                 {
                     //write exception log
-                    Log.Error(e.ToString());
+                    Log.Error(e, "Error during GenerateBackupsAsync for database: {DatabaseName}", database.Name);
                 }
             }
-
         }
 
-       
         private static string CreateFullDbBackup(Server myServer, Database database)
         {
             Console.WriteLine($"Creating backup of {database.Name}");
@@ -73,23 +85,10 @@ namespace DataCrud.DBOps.Backup
                 Action = BackupActionType.Database,
                 Database = database.Name
             };
-            /* Specify whether you want to back up database or files or log */
-            /* Specify the name of the database to back up */
-            /* You can take backup on several media type (disk or tape), here I am
-             * using File type and storing backup on the file system */
-            backup.Devices.AddDevice(fileName, DeviceType.File);
-            backup.BackupSetName = database.Name + "database Backup";
-            backup.BackupSetDescription = database.Name + " database - Full Backup";
-            /* You can specify the expiration date for your backup data
-             * after that date backup data would not be relevant */
-            //backup.ExpirationDate = DateTime.Today.AddDays(30);
 
-            /* You can specify Initialize = false (default) to create a new 
-             * backup set which will be appended as last backup set on the media. You
-             * can specify Initialize = true to make the backup as first set on the
-             * medium and to overwrite any other existing backup sets if the all the
-             * backup sets have expired and specified backup set name matches with
-             * the name on the medium */
+            backup.Devices.AddDevice(fileName, DeviceType.File);
+            backup.BackupSetName = database.Name + " database Backup";
+            backup.BackupSetDescription = database.Name + " database - Full Backup";
             backup.Initialize = false;
 
             /* Wiring up events for progress monitoring */
@@ -97,9 +96,6 @@ namespace DataCrud.DBOps.Backup
             ServerMessageEventHandler restoreComplete = Target;
             backup.Complete += restoreComplete;
 
-            /* SqlBackup method starts to take back up
-             * You can also use SqlBackupAsync method to perform the backup 
-             * operation asynchronously */
             try
             {
                 backup.SqlBackup(myServer);
@@ -107,11 +103,11 @@ namespace DataCrud.DBOps.Backup
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                Log.Error(e, "SQL Backup failed for {DatabaseName}", database.Name);
             }
 
             return fileName;
         }
-       
 
         private static void Target(object sender, PercentCompleteEventArgs percentCompleteEventArgs)
         {
@@ -122,6 +118,5 @@ namespace DataCrud.DBOps.Backup
         {
             Console.WriteLine(serverMessageEventArgs.ToString());
         }
-
     }
 }

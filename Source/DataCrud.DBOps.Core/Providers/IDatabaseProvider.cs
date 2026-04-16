@@ -9,10 +9,10 @@ namespace DataCrud.DBOps.Core.Providers
         string DisplayName { get; }
         ProviderCapabilities Capabilities { get; }
         
-        Task BackupAsync(string databaseName, string backupDirectory);
+        Task<string> BackupAsync(string databaseName, string backupDirectory);
         Task ShrinkAsync(string databaseName);
         Task ReindexAsync(string databaseName);
-        Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync();
+        Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default);
     }
 
     [Flags]

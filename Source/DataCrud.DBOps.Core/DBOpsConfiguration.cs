@@ -36,6 +36,19 @@ namespace DataCrud.DBOps.Core
         public List<IDatabaseProvider> Providers { get; set; } = new List<IDatabaseProvider>();
 
         /// <summary>
+        /// The local path where backup files will be staged before compression and push.
+        /// Defaults to a 'Backups' folder in the application root.
+        /// </summary>
+        public string BackupPath { get; set; } = "Backups";
+        public bool PushToAzure { get; set; } = false;
+        public string AzureStorageConnectionString { get; set; }
+        public bool PushToAws { get; set; } = false;
+        public string AwsAccessKey { get; set; }
+        public string AwsSecretKey { get; set; }
+        public string AwsBucketName { get; set; }
+        public string AwsRegion { get; set; }
+
+        /// <summary>
         /// Legacy connection string (for backward compatibility or simple setup).
         /// </summary>
         public string ConnectionString { get; set; }

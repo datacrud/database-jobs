@@ -29,7 +29,7 @@ namespace DataCrud.DBOps.MongoDb
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
         {
             var fileName = Path.Combine(backupDirectory, $"{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}");
             var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting MongoDB backup (mongodump) to {fileName}");
@@ -51,6 +51,7 @@ namespace DataCrud.DBOps.MongoDb
                 // mongodump creates a folder per DB. 
                 // In a production scenario, we might want to zip this.
                 await CompleteHistoryAsync(history, $"MongoDB backup completed. Data saved to {fileName}");
+                return fileName;
             }
             catch (Exception ex)
             {
@@ -96,7 +97,7 @@ namespace DataCrud.DBOps.MongoDb
             return Task.CompletedTask;
         }
 
-        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
@@ -108,8 +109,11 @@ namespace DataCrud.DBOps.MongoDb
                     return new[] { db };
                 }
 
-                var client = new MongoClient(url);
-                var databases = await client.ListDatabaseNamesAsync();
+                var settings = MongoClientSettings.FromUrl(url);
+                settings.ConnectTimeout = TimeSpan.FromSeconds(3); // Fast fail for discovery
+                
+                var client = new MongoClient(settings);
+                var databases = await client.ListDatabaseNamesAsync(cancellationToken);
                 var result = new System.Collections.Generic.List<string>();
                 
                 await databases.ForEachAsync(db => 

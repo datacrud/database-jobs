@@ -185,7 +185,8 @@ namespace DataCrud.DBOps.AspNetCore
                         reindex = p.Capabilities.HasFlag(ProviderCapabilities.Reindex)
                     }
                 }),
-                storageType = _options.Storage?.GetType().Name ?? "LiteDB",
+                activeProviderName = _options.Providers.FirstOrDefault()?.DisplayName ?? "None",
+                storageType = _options.Storage?.GetType().Name ?? "LiteDb",
                 securityEnabled = _options.Security.Enabled
             };
 
@@ -205,22 +206,42 @@ namespace DataCrud.DBOps.AspNetCore
         private async Task HandleDatabasesApi(HttpContext context)
         {
             var providerIndexStr = context.Request.Query["providerIndex"].FirstOrDefault();
-            if (int.TryParse(providerIndexStr, out int index) && index >= 0 && index < _options.Providers.Count)
+            
+            // Use a 10s cancellation token for the overall request, or the request aborted token
+            using (var cts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted))
             {
-                var provider = _options.Providers[index];
-                var databases = await provider.GetDatabasesAsync();
+                cts.CancelAfter(TimeSpan.FromSeconds(10));
                 
-                context.Response.ContentType = "application/json";
-                await JsonSerializer.SerializeAsync(context.Response.Body, databases);
-            }
-            else
-            {
-                // Default to first provider if none specified
-                var provider = _options.Providers.FirstOrDefault();
-                var databases = provider != null ? await provider.GetDatabasesAsync() : new string[] { "No Providers Configured" };
-                
-                context.Response.ContentType = "application/json";
-                await JsonSerializer.SerializeAsync(context.Response.Body, databases);
+                try
+                {
+                    if (int.TryParse(providerIndexStr, out int index) && index >= 0 && index < _options.Providers.Count)
+                    {
+                        var provider = _options.Providers[index];
+                        var databases = await provider.GetDatabasesAsync(cts.Token);
+                        
+                        context.Response.ContentType = "application/json";
+                        await JsonSerializer.SerializeAsync(context.Response.Body, databases, cancellationToken: cts.Token);
+                    }
+                    else
+                    {
+                        // Default to first provider if none specified
+                        var provider = _options.Providers.FirstOrDefault();
+                        var databases = provider != null ? await provider.GetDatabasesAsync(cts.Token) : new string[] { "No Providers Configured" };
+                        
+                        context.Response.ContentType = "application/json";
+                        await JsonSerializer.SerializeAsync(context.Response.Body, databases, cancellationToken: cts.Token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.RequestTimeout;
+                    await context.Response.WriteAsJsonAsync(new string[] { "Timeout fetching databases" });
+                }
+                catch (Exception ex)
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                    await context.Response.WriteAsJsonAsync(new string[] { $"Error: {ex.Message}" });
+                }
             }
         }
 
@@ -251,7 +272,7 @@ namespace DataCrud.DBOps.AspNetCore
 
                     switch (jobType.ToLower())
                     {
-                        case "backup": await instanceManager.RunAsync(dbName, true, false, false, true, "C:\\Backups", 7); break;
+                        case "backup": await instanceManager.RunAsync(dbName, true, false, false, true, _options.BackupPath, 7); break;
                         case "shrink": await instanceManager.RunAsync(dbName, false, true, false, false); break;
                         case "index": await instanceManager.RunAsync(dbName, false, false, true, false); break;
                     }

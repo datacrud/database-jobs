@@ -29,34 +29,67 @@ namespace DataCrud.DBOps.SqlServer
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
         {
-            var fileName = Path.Combine(backupDirectory, $"{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.bak");
-            var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting backup to {fileName}");
+            var isPaaS = await IsPaaSAsync();
+            var extension = isPaaS ? "bacpac" : "bak";
+            var fileName = Path.Combine(backupDirectory, $"sql_{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{extension}");
+            
+            var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting {(isPaaS ? "BACPAC export" : "backup")} to {fileName}");
 
             try
             {
                 if (!Directory.Exists(backupDirectory)) Directory.CreateDirectory(backupDirectory);
 
                 var builder = new SqlConnectionStringBuilder(_connectionString);
-                var server = ConnectToServer(builder);
-
-                var backup = new Backup
+                
+                if (isPaaS)
                 {
-                    Action = BackupActionType.Database,
-                    Database = databaseName
-                };
-                backup.Devices.AddDevice(fileName, DeviceType.File);
-                backup.Initialize = true;
-                backup.SqlBackup(server);
+                    await ExportBacpacAsync(databaseName, fileName);
+                }
+                else
+                {
+                    var server = ConnectToServer(builder);
+                    var backup = new Backup
+                    {
+                        Action = BackupActionType.Database,
+                        Database = databaseName
+                    };
+                    backup.Devices.AddDevice(fileName, DeviceType.File);
+                    backup.Initialize = true;
+                    backup.SqlBackup(server);
+                }
 
                 await CompleteHistoryAsync(history, "Backup completed successfully.");
+                return fileName;
             }
             catch (Exception ex)
             {
                 await FailHistoryAsync(history, ex);
                 throw;
             }
+        }
+
+        private async Task<bool> IsPaaSAsync()
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            {
+                await conn.OpenAsync();
+                using (var cmd = new SqlCommand("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT)", conn))
+                {
+                    var edition = (int)await cmd.ExecuteScalarAsync();
+                    return edition == 5 || edition == 6 || edition == 8;
+                }
+            }
+        }
+
+        private async Task ExportBacpacAsync(string databaseName, string fileName)
+        {
+            await Task.Run(() =>
+            {
+                var services = new Microsoft.SqlServer.Dac.DacServices(_connectionString);
+                services.ExportBacpac(fileName, databaseName);
+            });
         }
 
         public async Task ShrinkAsync(string databaseName)
@@ -105,7 +138,7 @@ namespace DataCrud.DBOps.SqlServer
             }
         }
 
-        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync()
+        public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
@@ -119,7 +152,12 @@ namespace DataCrud.DBOps.SqlServer
 
                 return await Task.Run(() =>
                 {
-                    var server = ConnectToServer(builder);
+                    var discoveryBuilder = new SqlConnectionStringBuilder(_connectionString)
+                    {
+                        ConnectTimeout = 5 // Fast fail for discovery
+                    };
+
+                    var server = ConnectToServer(discoveryBuilder, discoveryMode: true);
                     var databases = new System.Collections.Generic.List<string>();
 
                     foreach (Database db in server.Databases)
@@ -140,9 +178,16 @@ namespace DataCrud.DBOps.SqlServer
             }
         }
 
-        private Server ConnectToServer(SqlConnectionStringBuilder builder)
+        private Server ConnectToServer(SqlConnectionStringBuilder builder, bool discoveryMode = false)
         {
             var server = new Server(builder.DataSource);
+            
+            // Set SMO specific timeouts
+            if (discoveryMode)
+            {
+                server.ConnectionContext.ConnectTimeout = 5;
+            }
+
             if (builder.IntegratedSecurity)
             {
                 server.ConnectionContext.LoginSecure = true;

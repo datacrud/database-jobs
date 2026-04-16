@@ -1,5 +1,27 @@
-**/**/.vs/
-**/**/bin/
-**/**/obj/
+# User-specific files
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Tt]est[Rr]esults/
+nupkg/
+
+# NuGet
+packages/
 *.nupkg
+*.snupkg
+
+# Sample specific
 /Source/Samples/DataCrud.DBOps.Sample/jobs_dbops.db
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -12,11 +12,13 @@ namespace DataCrud.DBOps.Core
     {
         private readonly IJobStorage _storage;
         private readonly IDatabaseProvider _provider;
+        private readonly ICloudPushService _cloudPush;
 
-        public MaintenanceManager(IJobStorage storage, IDatabaseProvider provider)
+        public MaintenanceManager(IJobStorage storage, IDatabaseProvider provider, ICloudPushService cloudPush = null)
         {
             _storage = storage ?? throw new ArgumentNullException(nameof(storage));
             _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+            _cloudPush = cloudPush;
         }
 
         public async Task RunAsync(string databaseName, bool backup, bool shrink, bool index, bool cleanup, string backupDir = null, int retentionDays = 7)
@@ -42,7 +44,13 @@ namespace DataCrud.DBOps.Core
                     {
                         throw new ArgumentException("Backup directory must be specified for backup jobs.", nameof(backupDir));
                     }
-                    await _provider.BackupAsync(databaseName, backupDir);
+                    
+                    var backupFile = await _provider.BackupAsync(databaseName, backupDir);
+
+                    if (_cloudPush != null && !string.IsNullOrEmpty(backupFile))
+                    {
+                        await _cloudPush.PushAsync(backupFile, _provider.ProviderName.ToLower());
+                    }
                 }
 
                 if (cleanup && !string.IsNullOrEmpty(backupDir))

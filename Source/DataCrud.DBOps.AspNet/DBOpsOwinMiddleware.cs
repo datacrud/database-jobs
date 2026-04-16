@@ -179,7 +179,8 @@ namespace DataCrud.DBOps.AspNet
                         reindex = p.Capabilities.HasFlag(ProviderCapabilities.Reindex)
                     }
                 }),
-                storageType = _options.Storage?.GetType().Name ?? "LiteDB",
+                activeProviderName = _options.Providers.FirstOrDefault()?.DisplayName ?? "None",
+                storageType = _options.Storage?.GetType().Name ?? "LiteDb",
                 securityEnabled = _options.Security.Enabled
             };
 
@@ -202,20 +203,39 @@ namespace DataCrud.DBOps.AspNet
         private async Task HandleDatabasesApi(IOwinContext context)
         {
             var providerIndexStr = context.Request.Query["providerIndex"];
-            int.TryParse(providerIndexStr, out int providerIndex);
-
-            if (providerIndex < 0 || providerIndex >= _options.Providers.Count)
+            
+            // Use a 10s cancellation token for the overall request, or the request aborted token
+            using (var cts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(context.Request.CallCancelled))
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                await context.Response.WriteAsync("Invalid provider index");
-                return;
+                cts.CancelAfter(TimeSpan.FromSeconds(10));
+                
+                try
+                {
+                    if (int.TryParse(providerIndexStr, out int providerIndex) && providerIndex >= 0 && providerIndex < _options.Providers.Count)
+                    {
+                        var provider = _options.Providers[providerIndex];
+                        var databases = await provider.GetDatabasesAsync(cts.Token);
+                        
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(Newtonsoft.Json.JsonConvert.SerializeObject(databases));
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                        await context.Response.WriteAsync("Invalid provider index");
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.RequestTimeout;
+                    await context.Response.WriteAsync(Newtonsoft.Json.JsonConvert.SerializeObject(new string[] { "Timeout fetching databases" }));
+                }
+                catch (Exception ex)
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                    await context.Response.WriteAsync(Newtonsoft.Json.JsonConvert.SerializeObject(new string[] { $"Error: {ex.Message}" }));
+                }
             }
-
-            var provider = _options.Providers[providerIndex];
-            var databases = await provider.GetDatabasesAsync();
-
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(Newtonsoft.Json.JsonConvert.SerializeObject(databases));
         }
 
         private async Task HandleJobActionApi(IOwinContext context, string subPath)
@@ -250,11 +270,11 @@ namespace DataCrud.DBOps.AspNet
             var manager = new MaintenanceManager(storage: storage, provider: provider);
             var jobType = subPath.Split('/').Last();
 
-            Task.Run(async () => {
+            _ = Task.Run(async () => {
                 try {
                     switch (jobType.ToLower())
                     {
-                        case "backup": await manager.RunAsync(databaseName, true, false, false, false, "C:\\Backups"); break;
+                        case "backup": await manager.RunAsync(databaseName, true, false, false, false, _options.BackupPath); break;
                         case "shrink": await manager.RunAsync(databaseName, false, true, false, false); break;
                         case "reindex": await manager.RunAsync(databaseName, false, false, true, false); break;
                     }

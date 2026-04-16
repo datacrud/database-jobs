@@ -15,7 +15,7 @@ namespace DataCrud.DBOps.Shared.Extensions
             string month = date.Month < 10 ? $"0{date.Month}" : $"{date.Month}";
 
 
-            string fileName = directory + database.Name + "_" + date.Date.Year + "-" + month + "-" + day + ".bak";
+            string fileName = Path.Combine(directory, "sql_" + database.Name + "_" + date.Date.Year + "-" + month + "-" + day + ".bak");
 
             return fileName;
         }

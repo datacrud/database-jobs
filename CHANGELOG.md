@@ -1,0 +1,27 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2026-04-16
+
+### Added
+- **Provider-Agnostic Architecture**: Introduced `IDatabaseProvider` to support SQL Server, PostgreSQL, MySQL, and Oracle.
+- **Azure SQL (PaaS) Support**: Implemented BACPAC export for SQL Server instances running in Azure PaaS.
+- **Cloud Storage Integration**: Added `CloudPushService` for automatic backup synchronization to Azure Blob Storage and AWS S3.
+- **Provider-Prefixed Naming**: All backup files now include a provider prefix (`sql_`, `pg_`, `my_`, `ora_`) for better organization.
+- **Modern Dashboard**: Embedded HTML/JS dashboard using Tailwind CSS, Alpine.js, and HTMX.
+- **Busy Overlay**: Global UI indicator for asynchronous maintenance jobs and database discovery.
+- **BACPAC Stabilization**: Optimized SQL Server SMO for Azure environments.
+
+### Changed
+- Standardized NuGet dependencies on `Dapper`, `Microsoft.Data.SqlClient`, and `Npgsql`.
+- Refactored `MaintenanceManager` to orchestrate multi-step maintenance workflows including cloud pushes.
+- Updated `BackupAsync` return types to enable path-aware orchestration.
+
+### Fixed
+- SQL Server SMO connection issues during backup operations.
+- Version mismatch in cross-provider dependencies.
+- UI state persistence during provider switching.
