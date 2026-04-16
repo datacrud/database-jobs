@@ -14,7 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 IJobStorage storage = new LiteDbJobStorage("jobs_dbops.db");
 
 // Help the user by checking common local DB instances
-string GetValidConnectionString(string key, string fallback, string pingTest = null) {
+string GetValidConnectionString(string key, string fallback, string? pingTest = null) {
     var val = builder.Configuration.GetConnectionString(key);
     if (!string.IsNullOrEmpty(val)) return val;
     return fallback;

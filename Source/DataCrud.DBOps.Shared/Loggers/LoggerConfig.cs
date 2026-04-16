@@ -14,7 +14,7 @@ namespace DataCrud.DBOps.Shared.Loggers
 
             Log.Logger = new LoggerConfiguration()
                 //.WriteTo.Console()
-                .WriteTo.File(logFilePath, LogEventLevel.Error, rollingInterval: RollingInterval.Day)
+                .WriteTo.File(logFilePath, LogEventLevel.Information, rollingInterval: RollingInterval.Day)
                 .CreateLogger();
 
         }

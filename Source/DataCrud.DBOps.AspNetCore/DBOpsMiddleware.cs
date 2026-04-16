@@ -84,6 +84,18 @@ namespace DataCrud.DBOps.AspNetCore
                 return;
             }
 
+            if (subPath.Equals("api/logs", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleLogsListApi(context);
+                return;
+            }
+
+            if (subPath.Equals("api/logs/content", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleLogContentApi(context);
+                return;
+            }
+
             await _next(context);
         }
 
@@ -283,6 +295,55 @@ namespace DataCrud.DBOps.AspNetCore
 
             context.Response.ContentType = "text/html";
             await context.Response.WriteAsync("<div class='fixed bottom-4 right-4 bg-green-600 text-white p-4 rounded-lg shadow-xl' x-data='{ show: true }' x-show='show' x-init='setTimeout(() => show = false, 3000)'>Job triggered successfully! Check history in a moment.</div>");
+        }
+
+        private async Task HandleLogsListApi(HttpContext context)
+        {
+            var logsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+            if (!Directory.Exists(logsDir))
+            {
+                context.Response.ContentType = "application/json";
+                await JsonSerializer.SerializeAsync(context.Response.Body, new string[] { });
+                return;
+            }
+
+            var logs = Directory.GetFiles(logsDir, "*.log")
+                .Select(Path.GetFileName)
+                .OrderByDescending(f => f)
+                .ToList();
+
+            context.Response.ContentType = "application/json";
+            await JsonSerializer.SerializeAsync(context.Response.Body, logs);
+        }
+
+        private async Task HandleLogContentApi(HttpContext context)
+        {
+            var fileName = context.Request.Query["file"].FirstOrDefault();
+            if (string.IsNullOrEmpty(fileName))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                return;
+            }
+
+            // Sanitize filename to prevent directory traversal
+            fileName = Path.GetFileName(fileName);
+            var logsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+            var filePath = Path.Combine(logsDir, fileName);
+
+            if (!File.Exists(filePath))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                return;
+            }
+
+            context.Response.ContentType = "text/plain";
+            // Use FileShare.ReadWrite because Serilog might be holding the file open
+            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var reader = new StreamReader(stream))
+            {
+                var content = await reader.ReadToEndAsync();
+                await context.Response.WriteAsync(content);
+            }
         }
     }
 }

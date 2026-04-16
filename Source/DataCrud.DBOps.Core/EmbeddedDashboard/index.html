@@ -74,7 +74,39 @@
         async changeProvider(index) {
             this.selectedProviderIndex = index;
             await this.loadDatabases();
-            // Refresh history if needed (handled by HTMX button usually, but we could trigger it here)
+        },
+
+        logs: [],
+        selectedLogFile: '',
+        loadingLogs: false,
+        logContent: '',
+
+        async loadLogs() {
+            this.loadingLogs = true;
+            try {
+                const resp = await fetch('api/logs');
+                this.logs = await resp.json();
+                if (this.logs.length > 0 && !this.selectedLogFile) {
+                    this.selectedLogFile = this.logs[0];
+                    this.fetchLogContent(this.selectedLogFile);
+                }
+            } catch (err) {
+                console.error('Failed to load logs', err);
+            } finally {
+                this.loadingLogs = false;
+            }
+        },
+
+        async fetchLogContent(file) {
+            this.selectedLogFile = file;
+            const resp = await fetch(`api/logs/content?file=${file}`);
+            this.logContent = await resp.text();
+            
+            // Scroll to bottom of log viewer if it exists
+            this.$nextTick(() => {
+                const viewer = document.getElementById('log-viewer-scroll');
+                if (viewer) viewer.scrollTop = viewer.scrollHeight;
+            });
         }
       }"
       @htmx:before-request.window="if(event.detail.path.includes('api/jobs')) loadingJobs = true"
@@ -113,6 +145,7 @@
                     <div class="flex space-x-1">
                         <button @click="activeTab = 'history'" :class="activeTab === 'history' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">History</button>
                         <button @click="activeTab = 'jobs'" :class="activeTab === 'jobs' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Jobs</button>
+                        <button @click="activeTab = 'logs'; loadLogs()" :class="activeTab === 'logs' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Logs</button>
                         <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Settings</button>
                     </div>
                     
@@ -227,6 +260,71 @@
                 <!-- If No Capabilities -->
                  <div x-show="providers.length > 0 && activeProvider.capabilities && !activeProvider.capabilities.backup && !activeProvider.capabilities.shrink && !activeProvider.capabilities.reindex" class="p-10 text-center gray-500 italic bg-gray-100 rounded-xl">
                     No supported maintenance tasks for this provider.
+                </div>
+            </section>
+
+            <!-- Logs Section -->
+            <section x-show="activeTab === 'logs'" x-cloak x-transition class="flex flex-col h-[70vh]">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">System Logs</h2>
+                        <p class="text-sm text-gray-500">Real-time monitoring and diagnostic output from the DBOps engine.</p>
+                    </div>
+                    <div class="flex space-x-2">
+                         <button @click="fetchLogContent(selectedLogFile)" class="bg-white text-gray-700 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition flex items-center shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            Refresh Log
+                        </button>
+                        <button @click="loadLogs()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center shadow-sm">
+                            Switch File
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-grow space-x-6 overflow-hidden">
+                    <!-- Log Files Sidebar -->
+                    <div class="w-1/4 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                        <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Log Files</h3>
+                        </div>
+                        <div class="flex-grow overflow-y-auto">
+                            <template x-for="log in logs" :key="log">
+                                <button @click="fetchLogContent(log)" 
+                                        :class="selectedLogFile === log ? 'bg-indigo-50 border-r-4 border-indigo-600 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'"
+                                        class="w-full text-left px-4 py-3 text-sm transition font-medium border-b border-gray-50 flex items-center">
+                                    <svg class="w-4 h-4 mr-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <span x-text="log"></span>
+                                </button>
+                            </template>
+                            <template x-if="logs.length === 0">
+                                <div class="p-8 text-center text-gray-400 italic text-sm">No log files found.</div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Log Output -->
+                    <div class="flex-grow bg-slate-900 rounded-xl shadow-inner border border-slate-800 flex flex-col overflow-hidden">
+                        <div class="p-3 bg-slate-800 flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <div class="flex space-x-1.5 px-2">
+                                    <div class="w-3 h-3 rounded-full bg-red-500/50"></div>
+                                    <div class="w-3 h-3 rounded-full bg-amber-500/50"></div>
+                                    <div class="w-3 h-3 rounded-full bg-emerald-500/50"></div>
+                                </div>
+                                <span class="text-xs font-mono text-slate-400" x-text="selectedLogFile || 'Waiting for selection...'"></span>
+                            </div>
+                            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Read Only Output</div>
+                        </div>
+                        <div id="log-viewer-scroll" class="flex-grow p-4 font-mono text-sm overflow-auto scroll-smooth">
+                            <pre class="text-slate-300 whitespace-pre-wrap selection:bg-indigo-500/30" x-text="logContent"></pre>
+                            <template x-if="!logContent">
+                                <div class="h-full flex flex-col items-center justify-center text-slate-600 space-y-4">
+                                    <svg class="w-12 h-12 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                    <span>Select a log file to view technical events</span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                 </div>
             </section>
 
