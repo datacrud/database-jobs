@@ -4,15 +4,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DataCrud.DBOps.Postgres</AssemblyName>
     <RootNamespace>DataCrud.DBOps.Postgres</RootNamespace>
-    <Version>1.0.0</Version>
-    <Authors>DataCrud</Authors>
-    <Company>DataCrud</Company>
     <Description>Postgres provider for DataCrud.DBOps. Uses Npgsql for commands and native pg_dump for backups.</Description>
     <PackageTags>database maintenance backup devops datacrud dbops postgres</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -30,4 +23,5 @@
   </ItemGroup>
 
 </Project>
+
 

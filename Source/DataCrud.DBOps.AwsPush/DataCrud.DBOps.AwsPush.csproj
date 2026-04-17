@@ -4,15 +4,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DataCrud.DBOps.AwsPush</AssemblyName>
     <RootNamespace>DataCrud.DBOps.AwsPush</RootNamespace>
-    <Version>1.0.0</Version>
-    <Authors>DataCrud</Authors>
-    <Company>DataCrud</Company>
     <Description>AWS S3 upload provider for DataCrud.DBOps. Enables pushing backups to Amazon S3 buckets.</Description>
     <PackageTags>database maintenance backup devops datacrud dbops aws s3</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -31,4 +24,5 @@
   </ItemGroup>
 
 </Project>
+
 

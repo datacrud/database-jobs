@@ -1,5 +1,8 @@
 # DataCrud.DBOps - NuGet Packaging Script
 # This script builds the solution in Release mode and generates NuGet packages.
+param(
+    [string]$Version = $null
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -16,8 +19,14 @@ Remove-Item "$outputDir\*" -Force -ErrorAction SilentlyContinue
 Write-Host "Restoring dependencies..." -ForegroundColor Cyan
 dotnet restore $solutionFile
 
+$buildArgs = @("-c", "Release", "--no-restore")
+if ($Version) {
+    Write-Host "Overriding version to $Version..." -ForegroundColor Yellow
+    $buildArgs += "/p:Version=$Version"
+}
+
 Write-Host "Building solution in Release mode..." -ForegroundColor Cyan
-dotnet build $solutionFile -c Release --no-restore
+dotnet build $solutionFile @buildArgs
 
 Write-Host "Packing projects..." -ForegroundColor Cyan
 # List of projects to pack (libs only)
@@ -29,7 +38,11 @@ foreach ($project in $projects) {
     }
     
     Write-Host "Packing $($project.BaseName)..." -ForegroundColor Yellow
-    dotnet pack $project.FullName -c Release -o $outputDir --no-build
+    $packArgs = @($project.FullName, "-c", "Release", "-o", $outputDir, "--no-build")
+    if ($Version) {
+        $packArgs += "/p:Version=$Version"
+    }
+    dotnet pack @packArgs
 }
 
 Write-Host "`nSuccessfully generated NuGet packages in $outputDir directory." -ForegroundColor Green

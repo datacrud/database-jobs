@@ -4,15 +4,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DataCrud.DBOps.Shared</AssemblyName>
     <RootNamespace>DataCrud.DBOps.Shared</RootNamespace>
-    <Version>1.0.0</Version>
-    <Authors>DataCrud</Authors>
-    <Company>DataCrud</Company>
     <Description>Foundational shared library for DataCrud.DBOps. Contains core enums, models, and extensions.</Description>
     <PackageTags>database maintenance backup devops datacrud dbops shared</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -30,6 +23,7 @@
   </ItemGroup>
 
 </Project>
+
 
 
 

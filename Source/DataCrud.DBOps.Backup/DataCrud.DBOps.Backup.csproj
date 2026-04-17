@@ -3,15 +3,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>DataCrud.DBOps.Backup</RootNamespace>
     <AssemblyName>DataCrud.DBOps.Backup</AssemblyName>
-    <Version>1.0.0</Version>
-    <Authors>DataCrud</Authors>
-    <Company>DataCrud</Company>
     <Description>Cloud-integrated backup service for DataCrud.DBOps. Supports Azure and AWS storage integration.</Description>
     <PackageTags>database maintenance backup devops datacrud dbops cloud azure aws</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -33,3 +26,4 @@
     <ProjectReference Include="..\DataCrud.DBOps.Core\DataCrud.DBOps.Core.csproj" />
   </ItemGroup>
 </Project>
+

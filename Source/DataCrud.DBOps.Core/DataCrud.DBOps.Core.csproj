@@ -5,15 +5,8 @@
     <AssemblyName>DataCrud.DBOps.Core</AssemblyName>
     <RootNamespace>DataCrud.DBOps.Core</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.0.0</Version>
-    <Authors>DataCrud</Authors>
-    <Company>DataCrud</Company>
     <Description>Slim Core for DataCrud.DBOps. Provides the engine, dashboard assets, and provider interfaces.</Description>
     <PackageTags>database maintenance backup devops datacrud dbops core engine</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -44,5 +37,6 @@
   </ItemGroup>
 
 </Project>
+
 
 
