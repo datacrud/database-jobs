@@ -65,6 +65,28 @@ builder.Services.AddDBOps(options =>
 });
 ```
 
+### 2. Multi-Database Configuration
+
+DBOps is designed to manage multiple database instances (and different providers) simultaneously from a single dashboard.
+
+```csharp
+builder.Services.AddDBOps(options =>
+{
+    options.Storage = new LiteDbJobStorage("history.db");
+
+    // Add multiple SQL Servers
+    options.Providers.Add(new SqlServerProvider("ConnString1", "Production ERP"));
+    options.Providers.Add(new SqlServerProvider("ConnString2", "Legacy CRM"));
+
+    // Mix different database types
+    options.Providers.Add(new PostgresProvider("PostgresConn", "Analytics App"));
+    options.Providers.Add(new MySqlProvider("MySqlConn", "Marketing Site"));
+
+    // Enable "Discovery Mode" to automatically find all DBs on a server
+    options.Providers.Add(new SqlServerProvider("ServerConn", "Main Cluster", discover: true));
+});
+```
+
 ### 2. .NET Framework / Legacy (OWIN)
 
 For legacy applications, install the AspNet integration:
