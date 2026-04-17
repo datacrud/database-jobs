@@ -166,6 +166,49 @@ options.Security.AuthorizationFilters.Add(new MyCustomAuthFilter());
 
 ---
 
+### 3. Scheduling & Background Jobs
+
+You can easily automate your database maintenance using popular schedulers like **Hangfire** or native **.NET Background Services**.
+
+#### Using Hangfire
+```csharp
+// In your Startup or Program.cs
+RecurringJob.AddOrUpdate<MaintenanceManager>(
+    "daily-backup",
+    manager => manager.RunAsync("MyDatabase", true, true, true, true, true, "C:\\Backups", 7, true, null, default),
+    Cron.Daily
+);
+```
+
+#### Using .NET BackgroundService
+```csharp
+public class DatabaseBackupWorker : BackgroundService
+{
+    private readonly IServiceProvider _serviceProvider;
+
+    public DatabaseBackupWorker(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            using (var scope = _serviceProvider.CreateScope())
+            {
+                var manager = scope.ServiceProvider.GetRequiredService<MaintenanceManager>();
+                await manager.RunAsync("MyDatabase", backup: true, shrink: true, index: true, 
+                                     reorganize: true, cleanup: true, backupDir: "C:\\Backups");
+            }
+            
+            // Wait 24 hours
+            await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+        }
+    }
+}
+```
+
 ## 📜 Professional Services & Support
 
 DataCrud.DBOps is maintained for enterprise-grade stability. For custom provider development or specialized cloud integrations, please reach out to the [DataCrud](https://datacrud.com) team.

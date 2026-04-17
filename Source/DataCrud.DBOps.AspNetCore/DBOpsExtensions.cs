@@ -22,13 +22,17 @@ namespace DataCrud.DBOps.AspNetCore
                 services.AddSingleton<IJobStorage>(options.Storage);
             }
 
+            services.AddSingleton<DataCrud.DBOps.Core.Services.ICloudPushService, DataCrud.DBOps.Core.Services.CloudPushService>();
+
             services.AddScoped<MaintenanceManager>(sp => 
             {
                 var storage = sp.GetRequiredService<IJobStorage>();
-                // For now, we use the first registered provider or a default
-                // In a real multi-db scenario, we might need a factory
+                var cloudPush = sp.GetRequiredService<DataCrud.DBOps.Core.Services.ICloudPushService>();
+                
+                // Use the first provider as default for the registered manager
                 var provider = options.Providers.Count > 0 ? options.Providers[0] : null;
-                return new MaintenanceManager(storage: storage, provider: provider);
+                
+                return new MaintenanceManager(storage, provider, cloudPush);
             });
             
             return services;
