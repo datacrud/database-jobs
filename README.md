@@ -53,18 +53,40 @@ dotnet add package DataCrud.DBOps.SqlServer
 Configure with Dependency Injection:
 
 ```csharp
-builder.Services.AddDatabaseOps(options =>
+builder.Services.AddDBOps(options =>
 {
     // Configure Storage (Centralized History)
-    options.UseSqlServerStorage("YourHistoryDbConnectionString");
-    
-    // Configure Jobs
-    options.EnableBackupJob(cron: "0 0 * * *"); // Daily midnight backup
-    options.EnableIndexMaintenance = true;
+    options.Storage = new SqlServerJobStorage("YourHistoryDbConnectionString");
     
     // Multi-Cloud Sync
-    options.AddAwsPush("bucket-name", "region");
+    options.PushToAws = true;
+    options.AwsBucketName = "bucket-name";
+    options.AwsRegion = "us-east-1";
 });
+```
+
+### 2. .NET Framework / Legacy (OWIN)
+
+For legacy applications, install the AspNet integration:
+
+```bash
+Install-Package DataCrud.DBOps.AspNet
+```
+
+Configure in your `Startup.cs`:
+
+```csharp
+public void Configuration(IAppBuilder app)
+{
+    app.UseDBOps(options => 
+    {
+        options.DashboardPath = "/dbops";
+        options.Storage = new LiteDbJobStorage("jobs_dbops.db");
+        
+        // Register your database providers
+        options.Providers.Add(new SqlServerProvider("YourConnectionString", "Data Server 01"));
+    });
+}
 ```
 
 ### 2. Embedded Dashboard
@@ -81,11 +103,32 @@ app.UseDatabaseOpsDashboard(options =>
 
 ---
 
-## 🔒 Security
+## 🔒 Security & Authentication
 
-DBOps includes built-in security filters for the dashboard, supporting:
-- **Basic Auth**: For quick internal deployments.
-- **Role-based Authorization**: Full integration with ASP.NET Identity and OWIN security contexts.
+DBOps is secure by default. You can configure authentication for the dashboard using several methods:
+
+### 1. Basic Authentication
+The simplest way to protect your dashboard is using the built-in Basic Auth.
+
+```csharp
+options.Security.Enabled = true; // Enabled by default
+options.Security.Username = "admin";
+options.Security.Password = "strong-password-here";
+```
+
+### 2. Role-Based Authorization
+If your application uses ASP.NET Identity or OWIN Security, you can restrict access to specific roles:
+
+```csharp
+options.Security.AllowedRoles = new[] { "Administrator", "DBManager" };
+```
+
+### 3. Custom Authorization Filters
+For advanced security requirements (IP filtering, custom headers, etc.), implement `IDBOpsAuthorizationFilter`:
+
+```csharp
+options.Security.AuthorizationFilters.Add(new MyCustomAuthFilter());
+```
 
 ---
 
