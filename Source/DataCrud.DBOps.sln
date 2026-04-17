@@ -15,8 +15,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataCrud.DBOps.Zipper", "Da
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataCrud.DBOps.AzurePush", "DataCrud.DBOps.AzurePush\DataCrud.DBOps.AzurePush.csproj", "{64478AB9-236B-4035-99C9-1E67F6EBF71A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataCrud.DBOps.Maintenance", "DataCrud.DBOps.Maintenance\DataCrud.DBOps.Maintenance.csproj", "{AF4216D3-CACF-4A17-837D-A67134465F9B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataCrud.DBOps.Backup", "DataCrud.DBOps.Backup\DataCrud.DBOps.Backup.csproj", "{F319A8EB-D421-4C08-BECA-155F4DCAC1A2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataCrud.DBOps.AwsPush", "DataCrud.DBOps.AwsPush\DataCrud.DBOps.AwsPush.csproj", "{C99828C4-B892-487D-99BC-6D3B6DB48A10}"
@@ -119,18 +117,6 @@ Global
 		{64478AB9-236B-4035-99C9-1E67F6EBF71A}.Release|x64.Build.0 = Release|Any CPU
 		{64478AB9-236B-4035-99C9-1E67F6EBF71A}.Release|x86.ActiveCfg = Release|Any CPU
 		{64478AB9-236B-4035-99C9-1E67F6EBF71A}.Release|x86.Build.0 = Release|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Debug|x64.Build.0 = Debug|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Debug|x86.Build.0 = Debug|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Release|x64.ActiveCfg = Release|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Release|x64.Build.0 = Release|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Release|x86.ActiveCfg = Release|Any CPU
-		{AF4216D3-CACF-4A17-837D-A67134465F9B}.Release|x86.Build.0 = Release|Any CPU
 		{F319A8EB-D421-4C08-BECA-155F4DCAC1A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F319A8EB-D421-4C08-BECA-155F4DCAC1A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F319A8EB-D421-4C08-BECA-155F4DCAC1A2}.Debug|x64.ActiveCfg = Debug|Any CPU
