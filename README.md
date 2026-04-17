@@ -156,7 +156,7 @@ options.Security.AuthorizationFilters.Add(new MyCustomAuthFilter());
 
 ## 📜 Professional Services & Support
 
-DataCrud.DBOps is maintained for enterprise-grade stability. For custom provider development or specialized cloud integrations, please reach out to the [DataCrud](https://github.com/datacrud) team.
+DataCrud.DBOps is maintained for enterprise-grade stability. For custom provider development or specialized cloud integrations, please reach out to the [DataCrud](https://datacrud.com) team.
 
 ---
 
