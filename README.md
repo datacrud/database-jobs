@@ -30,12 +30,12 @@ Unlike traditional maintenance scripts, DBOps utilizes a centralized orchestrati
 
 ## 🛠 Supported Ecosystem
 
-| Category | Supported Providers |
-| :--- | :--- |
-| **Databases** | SQL Server, PostgreSQL, MySQL, Oracle, MongoDB |
-| **Cloud Storage** | AWS S3, Azure Blob Storage |
-| **Target Frameworks** | .NET 9.0, .NET Standard 2.0, .NET Framework 4.7+ |
-| **Persistence** | SQL Server (Table-backed), LiteDB (File-backed) |
+| Category | Supported Providers | NuGet Status |
+| :--- | :--- | :--- |
+| **Databases** | SQL Server, PostgreSQL, MySQL, Oracle, MongoDB | [![SqlServer](https://img.shields.io/nuget/v/DataCrud.DBOps.SqlServer.svg?label=SqlServer)](https://www.nuget.org/packages/DataCrud.DBOps.SqlServer) [![Postgres](https://img.shields.io/nuget/v/DataCrud.DBOps.Postgres.svg?label=Postgres)](https://www.nuget.org/packages/DataCrud.DBOps.Postgres) [![MySql](https://img.shields.io/nuget/v/DataCrud.DBOps.MySql.svg?label=MySql)](https://www.nuget.org/packages/DataCrud.DBOps.MySql) |
+| **Cloud Storage** | AWS S3, Azure Blob Storage | [![AwsPush](https://img.shields.io/nuget/v/DataCrud.DBOps.AwsPush.svg?label=AWS)](https://www.nuget.org/packages/DataCrud.DBOps.AwsPush) [![AzurePush](https://img.shields.io/nuget/v/DataCrud.DBOps.AzurePush.svg?label=Azure)](https://www.nuget.org/packages/DataCrud.DBOps.AzurePush) |
+| **Target Frameworks** | .NET 9.0, .NET Standard 2.0, .NET Framework 4.7+ | [![Frameworks](https://img.shields.io/badge/.NET-9.0%20%7C%20Standard%202.0%20%7C%204.8-blue)](https://dotnet.microsoft.com/) |
+| **Core Components** | Core Engine, Middleware, Backup, Maintenance | [![Core](https://img.shields.io/nuget/v/DataCrud.DBOps.Core.svg?label=Core)](https://www.nuget.org/packages/DataCrud.DBOps.Core) [![AspNetCore](https://img.shields.io/nuget/v/DataCrud.DBOps.AspNetCore.svg?label=AspNetCore)](https://www.nuget.org/packages/DataCrud.DBOps.AspNetCore) [![Backup](https://img.shields.io/nuget/v/DataCrud.DBOps.Backup.svg?label=Backup)](https://www.nuget.org/packages/DataCrud.DBOps.Backup) |
 
 ---
 
