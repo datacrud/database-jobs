@@ -9,9 +9,10 @@ namespace DataCrud.DBOps.Core.Providers
         string DisplayName { get; }
         ProviderCapabilities Capabilities { get; }
         
-        Task<string> BackupAsync(string databaseName, string backupDirectory);
-        Task ShrinkAsync(string databaseName);
-        Task ReindexAsync(string databaseName);
+        Task<string> BackupAsync(string databaseName, string backupDirectory, System.Threading.CancellationToken cancellationToken = default);
+        Task ShrinkAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default);
+        Task ReindexAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default);
+        Task ReorganizeAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default);
         Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default);
     }
 
@@ -22,6 +23,7 @@ namespace DataCrud.DBOps.Core.Providers
         Backup = 1,
         Shrink = 2,
         Reindex = 4,
-        All = Backup | Shrink | Reindex
+        Reorganize = 8,
+        All = Backup | Shrink | Reindex | Reorganize
     }
 }

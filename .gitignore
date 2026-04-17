@@ -25,3 +25,4 @@ packages/
 # OS files
 .DS_Store
 Thumbs.db
+/Source/Samples/DataCrud.DBOps.Sample/Backups

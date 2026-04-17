@@ -1,19 +1,30 @@
 # DataCrud.DBOps
 
+[![NuGet Version](https://img.shields.io/nuget/v/DataCrud.DBOps.Core.svg)](https://www.nuget.org/packages/DataCrud.DBOps.Core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![.NET](https://img.shields.io/badge/.NET-9.0%20%7C%20Standard%202.0%20%7C%204.8-blue)](https://dotnet.microsoft.com/)
 
-**DataCrud.DBOps** is a high-performance, resilient database maintenance and job orchestration library for .NET. Designed to bridge the gap between modern cloud-native applications and legacy enterprise systems, it provides a unified interface for database backups, index optimization, and cloud synchronization.
+**DataCrud.DBOps** is a premium, high-performance database maintenance and job orchestration library for .NET. Designed to bridge the gap between modern cloud-native architectures and legacy enterprise systems, it provides a unified interface for database backups, index optimization, and real-time operational monitoring.
 
 ---
 
-## 🚀 Key Features
+## ✨ Key Features
 
-*   **Intelligent Maintenance**: Automated database shrinking and index management (Reorganize/Rebuild) to ensure peak performance.
-*   **Resilient Backups**: Automated full-database backup workflows with high-ratio compression (Zip).
-*   **Multi-Cloud Sync**: Native, high-performance integration with **AWS S3** and **Azure Blob Storage**.
-*   **Persistent Tracking**: Integrated **LiteDB** storage engine for reliable, local job history and state management.
-*   **Cross-Platform Heritage**: First-class support for **ASP.NET Core (DI-friendly)** and **Legacy .NET Framework (OWIN/Console)**.
+*   **⚡ Intelligent Maintenance**: Automated database shrinking and sophisticated index management (Reorganize/Rebuild) to ensure peak performance.
+*   **🛡️ Resilient Backups**: Automated full-database backup workflows with high-ratio compression and integrity verification.
+*   **☁️ Multi-Cloud Sync**: Native, high-performance integration with **AWS S3** and **Azure Blob Storage** for off-site redundancy.
+*   **📊 Embedded Dashboard**: A stunning, lightweight operational dashboard built with **HTMX** and **Alpine.js**, providing real-time job control and log visibility.
+*   **📝 Centralized Logging**: Robust `IJobStorage` architecture supporting **SQL Server** and **LiteDB**, featuring parent/child log relationships for granular auditing.
+*   **🚀 Cross-Platform Heritage**: First-class support for **ASP.NET Core (DI-friendly)** and **Legacy .NET Framework (OWIN/Console)**.
+
+---
+
+## 🏗️ Architecture: Centralized History
+
+Unlike traditional maintenance scripts, DBOps utilizes a centralized orchestration engine. All database providers report to a unified `IJobStorage` backend, ensuring that your maintenance history is consistent across all servers.
+
+*   **Parent Logs**: Summary of job type, execution status, and duration.
+*   **Child Logs**: Detailed execution traces, warnings, and error stack traces for every step of the process.
 
 ---
 
@@ -24,25 +35,30 @@
 | **Databases** | SQL Server, PostgreSQL, MySQL, Oracle, MongoDB |
 | **Cloud Storage** | AWS S3, Azure Blob Storage |
 | **Target Frameworks** | .NET 9.0, .NET Standard 2.0, .NET Framework 4.7+ |
-| **Persistence** | LiteDB (Default Job Storage) |
+| **Persistence** | SQL Server (Table-backed), LiteDB (File-backed) |
 
 ---
 
 ## 💻 Getting Started
 
-### Modern .NET (ASP.NET Core)
+### 1. Modern .NET (ASP.NET Core)
 
 Install the core and your preferred provider via NuGet:
+
 ```bash
 dotnet add package DataCrud.DBOps.AspNetCore
 dotnet add package DataCrud.DBOps.SqlServer
 ```
 
-Configure the services in `Program.cs`:
+Configure with Dependency Injection:
+
 ```csharp
 builder.Services.AddDatabaseOps(options =>
 {
-    options.ConnectionString = "YourConnectionString";
+    // Configure Storage (Centralized History)
+    options.UseSqlServerStorage("YourHistoryDbConnectionString");
+    
+    // Configure Jobs
     options.EnableBackupJob(cron: "0 0 * * *"); // Daily midnight backup
     options.EnableIndexMaintenance = true;
     
@@ -51,52 +67,34 @@ builder.Services.AddDatabaseOps(options =>
 });
 ```
 
-### Legacy .NET Framework (OWIN)
+### 2. Embedded Dashboard
 
-For legacy applications using OWIN, register the middleware in your `Startup` class:
+Access the premium dashboard by mapping the middleware in your startup:
+
 ```csharp
-public void Configuration(IAppBuilder app)
+app.UseDatabaseOpsDashboard(options => 
 {
-    app.UseDBOps(options =>
-    {
-        options.ConnectionString = "YourConnectionString";
-        options.AuthUsername = "admin";
-        options.AuthPassword = "securePassword";
-        options.EnableAuth = true;
-    });
-}
+    options.Path = "/dbops";
+    options.Security.RequireAdminRole = true;
+});
 ```
 
 ---
 
-## ⚙️ Configuration (AppSettings)
+## 🔒 Security
 
-For standalone console applications or legacy implementations, use `App.config`:
-
-| Key | Description | Default |
-| :--- | :--- | :--- |
-| `ServerName` | Target SQL Server instance | `.\SQLEXPRESS` |
-| `BackupAllDatabases` | Process all non-system databases | `true` |
-| `BackupDirectoryPath` | Local path for backup storage | `C:\temp\backups\` |
-| `RemoveBakFileAfterZip` | Delete uncompressed `.bak` file after zipping | `true` |
-| `PushToAwsS3Bucket` | Enable AWS S3 synchronization | `false` |
+DBOps includes built-in security filters for the dashboard, supporting:
+- **Basic Auth**: For quick internal deployments.
+- **Role-based Authorization**: Full integration with ASP.NET Identity and OWIN security contexts.
 
 ---
 
 ## 📜 Professional Services & Support
 
-DataCrud.DBOps is designed for enterprise-grade stability. For advanced automation such as **Index Maintenance** across specialized environments, use our optimized SQL procedures:
-
-```sql
--- Global Index Rebuild
-EXEC sp_msforeachtable 'SET QUOTED_IDENTIFIER ON; ALTER INDEX ALL ON ? REBUILD'
-```
+DataCrud.DBOps is maintained for enterprise-grade stability. For custom provider development or specialized cloud integrations, please reach out to the [DataCrud](https://github.com/datacrud) team.
 
 ---
 
 ## 📄 License
 
 This project is licensed under the **MIT License**. See the `LICENSE` file for details.
-
-
-

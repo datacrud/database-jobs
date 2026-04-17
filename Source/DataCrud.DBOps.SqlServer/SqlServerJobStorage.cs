@@ -43,6 +43,18 @@ namespace DataCrud.DBOps.SqlServer
                             Details NVARCHAR(MAX) NULL
                         )
                     END
+
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'AppLogs' AND schema_id = SCHEMA_ID('{SchemaName}'))
+                    BEGIN
+                        CREATE TABLE {SchemaName}.AppLogs (
+                            Id INT PRIMARY KEY IDENTITY(1,1),
+                            JobId INT NULL,
+                            Level NVARCHAR(50) NOT NULL,
+                            Message NVARCHAR(MAX) NOT NULL,
+                            Timestamp DATETIME NOT NULL
+                        )
+                        CREATE INDEX IX_AppLogs_JobId ON {SchemaName}.AppLogs(JobId)
+                    END
                 ");
             }
         }
@@ -90,6 +102,32 @@ namespace DataCrud.DBOps.SqlServer
                 return await db.QueryFirstOrDefaultAsync<JobHistory>($@"
                     SELECT * FROM {SchemaName}.History WHERE Id = @id
                 ", new { id });
+            }
+        }
+
+        public async Task AddLogAsync(AppLog log)
+        {
+            using (var db = new SqlConnection(_connectionString))
+            {
+                await db.ExecuteAsync($@"
+                    INSERT INTO {SchemaName}.AppLogs (JobId, Level, Message, Timestamp)
+                    VALUES (@JobId, @Level, @Message, @Timestamp)
+                ", log);
+            }
+        }
+
+        public async Task<IEnumerable<AppLog>> GetLogsAsync(int limit = 100, int? jobId = null)
+        {
+            using (var db = new SqlConnection(_connectionString))
+            {
+                var sql = $@"SELECT TOP (@limit) * FROM {SchemaName}.AppLogs ";
+                if (jobId.HasValue)
+                {
+                    sql += "WHERE JobId = @jobId ";
+                }
+                sql += "ORDER BY Timestamp DESC";
+
+                return await db.QueryAsync<AppLog>(sql, new { limit, jobId });
             }
         }
     }

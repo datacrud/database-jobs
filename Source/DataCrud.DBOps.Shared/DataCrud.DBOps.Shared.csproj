@@ -5,15 +5,24 @@
     <AssemblyName>DataCrud.DBOps.Shared</AssemblyName>
     <RootNamespace>DataCrud.DBOps.Shared</RootNamespace>
     <Version>1.0.0</Version>
-    <Authors>DataCrud.com</Authors>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
     <Description>Foundational shared library for DataCrud.DBOps. Contains core enums, models, and extensions.</Description>
+    <PackageTags>database maintenance backup devops datacrud dbops shared</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Identity" Version="1.12.0" />
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
-    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="172.61.0" />
+    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="181.19.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Npgsql" Version="8.0.3" />
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
@@ -21,3 +30,6 @@
   </ItemGroup>
 
 </Project>
+
+
+

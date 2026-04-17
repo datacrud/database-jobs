@@ -31,10 +31,10 @@ namespace DataCrud.DBOps.Tests
             _mockProvider.Setup(p => p.Capabilities).Returns(ProviderCapabilities.Shrink);
 
             // Act
-            await _sut.RunAsync(dbName, backup: false, shrink: true, index: false, cleanup: false);
+            await _sut.RunAsync(dbName, backup: false, shrink: true, index: false, reorganize: false, cleanup: false);
 
             // Assert
-            _mockProvider.Verify(p => p.ShrinkAsync(dbName), Times.Once);
+            _mockProvider.Verify(p => p.ShrinkAsync(dbName, It.IsAny<System.Threading.CancellationToken>()), Times.Once);
         }
 
         [Fact]
@@ -45,10 +45,10 @@ namespace DataCrud.DBOps.Tests
             _mockProvider.Setup(p => p.Capabilities).Returns(ProviderCapabilities.None);
 
             // Act
-            await _sut.RunAsync(dbName, backup: false, shrink: true, index: false, cleanup: false);
+            await _sut.RunAsync(dbName, backup: false, shrink: true, index: false, reorganize: false, cleanup: false);
 
             // Assert
-            _mockProvider.Verify(p => p.ShrinkAsync(dbName), Times.Never);
+            _mockProvider.Verify(p => p.ShrinkAsync(dbName, It.IsAny<System.Threading.CancellationToken>()), Times.Never);
         }
 
         [Fact]
@@ -60,10 +60,10 @@ namespace DataCrud.DBOps.Tests
             _mockProvider.Setup(p => p.Capabilities).Returns(ProviderCapabilities.Backup);
 
             // Act
-            await _sut.RunAsync(dbName, backup: true, shrink: false, index: false, cleanup: false, backupDir: backupDir);
+            await _sut.RunAsync(dbName, backup: true, shrink: false, index: false, reorganize: false, cleanup: false, backupDir: backupDir);
 
             // Assert
-            _mockProvider.Verify(p => p.BackupAsync(dbName, backupDir), Times.Once);
+            _mockProvider.Verify(p => p.BackupAsync(dbName, backupDir, It.IsAny<System.Threading.CancellationToken>()), Times.Once);
         }
 
         [Fact]
@@ -73,7 +73,7 @@ namespace DataCrud.DBOps.Tests
             _mockProvider.Setup(p => p.Capabilities).Returns(ProviderCapabilities.Backup);
 
             // Act
-            Func<Task> act = () => _sut.RunAsync("TestDB", backup: true, shrink: false, index: false, cleanup: false, backupDir: null);
+            Func<Task> act = () => _sut.RunAsync("TestDB", backup: true, shrink: false, index: false, reorganize: false, cleanup: false, backupDir: null);
 
             // Assert
             await act.Should().ThrowAsync<ArgumentException>().WithMessage("*Backup directory must be specified*");
@@ -83,10 +83,24 @@ namespace DataCrud.DBOps.Tests
         public async Task RunAsync_ShouldInitializeStorageOnStart()
         {
             // Act
-            await _sut.RunAsync("TestDB", false, false, false, false);
+            await _sut.RunAsync("TestDB", false, false, false, false, false);
 
             // Assert
             _mockStorage.Verify(s => s.InitializeAsync(null), Times.Once);
+        }
+
+        [Fact]
+        public async Task RunAsync_ShouldInvokeReorganize_WhenRequestedAndSupported()
+        {
+            // Arrange
+            var dbName = "TestDB";
+            _mockProvider.Setup(p => p.Capabilities).Returns(ProviderCapabilities.Reorganize);
+
+            // Act
+            await _sut.RunAsync(dbName, backup: false, shrink: false, index: false, reorganize: true, cleanup: false);
+
+            // Assert
+            _mockProvider.Verify(p => p.ReorganizeAsync(dbName, It.IsAny<System.Threading.CancellationToken>()), Times.Once);
         }
     }
 }

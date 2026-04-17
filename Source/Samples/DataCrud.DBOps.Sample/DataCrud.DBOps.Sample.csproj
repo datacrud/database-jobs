@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\DataCrud.DBOps.AspNetCore\DataCrud.DBOps.AspNetCore.csproj" Condition="'$(TargetFramework)' == 'net9.0'" />
     <ProjectReference Include="..\..\DataCrud.DBOps.Core\DataCrud.DBOps.Core.csproj" />
     <ProjectReference Include="..\..\DataCrud.DBOps.SqlServer\DataCrud.DBOps.SqlServer.csproj" />
@@ -16,6 +20,10 @@
     <ProjectReference Include="..\..\DataCrud.DBOps.MySql\DataCrud.DBOps.MySql.csproj" />
     <ProjectReference Include="..\..\DataCrud.DBOps.MongoDb\DataCrud.DBOps.MongoDb.csproj" />
     <ProjectReference Include="..\..\DataCrud.DBOps.Oracle\DataCrud.DBOps.Oracle.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Backups\" />
   </ItemGroup>
 
 </Project>

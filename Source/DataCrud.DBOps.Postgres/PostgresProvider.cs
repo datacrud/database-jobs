@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using CliWrap;
 using DataCrud.DBOps.Core.Models;
 using DataCrud.DBOps.Core.Providers;
@@ -14,7 +15,6 @@ namespace DataCrud.DBOps.Postgres
     public class PostgresProvider : IDatabaseProvider
     {
         private readonly string _connectionString;
-        private readonly IJobStorage _storage;
         private readonly string _pgDumpPath;
         private readonly bool _discoverDatabases;
 
@@ -22,29 +22,61 @@ namespace DataCrud.DBOps.Postgres
         public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.All;
 
-        public PostgresProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true, string pgDumpPath = "pg_dump")
+        public PostgresProvider(string connectionString, string displayName = null, bool discover = true, string pgDumpPath = "pg_dump")
         {
             _connectionString = connectionString;
-            _storage = storage;
             _pgDumpPath = pgDumpPath;
             _discoverDatabases = discover;
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
+        private string ResolvePgDumpPath()
+        {
+            // 1. If absolute path provided, use it
+            if (Path.IsPathRooted(_pgDumpPath) && File.Exists(_pgDumpPath))
+                return _pgDumpPath;
+
+            // 2. Try common Windows locations
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var commonPaths = new[]
+                {
+                    @"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe",
+                    @"C:\Program Files\PostgreSQL\17\bin\pg_dump.exe",
+                    @"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe",
+                    @"C:\Program Files\PostgreSQL\15\bin\pg_dump.exe"
+                };
+
+                foreach (var path in commonPaths)
+                {
+                    if (File.Exists(path)) return path;
+                }
+            }
+
+            // 3. Fallback to default (hope it is in PATH)
+            return _pgDumpPath;
+        }
+
+        private string GetConnectionString(string databaseName)
+        {
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            builder.Database = databaseName;
+            return builder.ConnectionString;
+        }
+
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory, System.Threading.CancellationToken cancellationToken = default)
         {
             var fileName = Path.Combine(backupDirectory, $"pg_{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.sql");
-            var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting Postgres backup to {fileName}");
 
-            try
+            if (!Directory.Exists(backupDirectory)) Directory.CreateDirectory(backupDirectory);
+
+            var resolvedPath = ResolvePgDumpPath();
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            
+            // Use CliWrap to run pg_dump
+            try 
             {
-                if (!Directory.Exists(backupDirectory)) Directory.CreateDirectory(backupDirectory);
-
-                var builder = new NpgsqlConnectionStringBuilder(_connectionString);
-                
-                // Use CliWrap to run pg_dump
-                // Note: pg_dump requires PGPASSWORD env var or .pgpass file if no password provided in command
-                var result = await Cli.Wrap(_pgDumpPath)
+                var result = await Cli.Wrap(resolvedPath)
                     .WithArguments(args => args
                         .Add("--host").Add(builder.Host)
                         .Add("--username").Add(builder.Username)
@@ -54,56 +86,39 @@ namespace DataCrud.DBOps.Postgres
                     .WithEnvironmentVariables(env => env
                         .Set("PGPASSWORD", builder.Password)
                     )
-                    .ExecuteAsync();
+                    .ExecuteAsync(cancellationToken);
 
-                await CompleteHistoryAsync(history, "Postgres backup completed successfully.");
                 return fileName;
             }
-            catch (Exception ex)
+            catch (System.ComponentModel.Win32Exception)
             {
-                await FailHistoryAsync(history, ex);
-                throw;
+                throw new InvalidOperationException($"Postgres backup utility 'pg_dump' was not found at '{resolvedPath}'. Please ensure PostgreSQL is installed and in the system PATH, or specify the full path in configuration.");
             }
         }
 
-        public async Task ShrinkAsync(string databaseName)
+        public async Task ShrinkAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
-            var history = await CreateHistoryAsync(databaseName, JobType.Shrink, "Starting VACUUM (Shrink) operation.");
-
-            try
+            using (var conn = new NpgsqlConnection(GetConnectionString(databaseName)))
             {
-                using (var conn = new NpgsqlConnection(_connectionString))
-                {
-                    // Full Vacuum reclaims space but locks the table
-                    await conn.ExecuteAsync("VACUUM FULL;");
-                }
-
-                await CompleteHistoryAsync(history, "VACUUM completed successfully.");
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
+                // Full Vacuum reclaims space but locks the table
+                await conn.ExecuteAsync(new CommandDefinition("VACUUM FULL;", cancellationToken: cancellationToken));
             }
         }
 
-        public async Task ReindexAsync(string databaseName)
+        public async Task ReindexAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
-            var history = await CreateHistoryAsync(databaseName, JobType.IndexMaintenance, "Starting REINDEX operation.");
-
-            try
+            using (var conn = new NpgsqlConnection(GetConnectionString(databaseName)))
             {
-                using (var conn = new NpgsqlConnection(_connectionString))
-                {
-                    await conn.ExecuteAsync($"REINDEX DATABASE {databaseName};");
-                }
-
-                await CompleteHistoryAsync(history, "REINDEX completed successfully.");
+                await conn.ExecuteAsync(new CommandDefinition($"REINDEX DATABASE \"{databaseName}\";", cancellationToken: cancellationToken));
             }
-            catch (Exception ex)
+        }
+
+        public async Task ReorganizeAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
+        {
+            using (var conn = new NpgsqlConnection(GetConnectionString(databaseName)))
             {
-                await FailHistoryAsync(history, ex);
-                throw;
+                // VACUUM ANALYZE updates statistics and removes dead tuples without exclusive locks
+                await conn.ExecuteAsync(new CommandDefinition("VACUUM ANALYZE;", cancellationToken: cancellationToken));
             }
         }
 
@@ -127,7 +142,7 @@ namespace DataCrud.DBOps.Postgres
                         SELECT datname 
                         FROM pg_database 
                         WHERE datistemplate = false 
-                          AND datname != 'postgres';");
+                          AND datname != 'postgres' AND datname != 'template1';");
                     return databases;
                 }
             }
@@ -138,36 +153,5 @@ namespace DataCrud.DBOps.Postgres
             }
         }
 
-        private async Task<JobHistory> CreateHistoryAsync(string dbName, JobType type, string message)
-        {
-            var history = new JobHistory
-            {
-                DatabaseName = dbName,
-                JobType = type,
-                StartTime = DateTime.UtcNow,
-                Status = JobStatus.Running,
-                Message = message
-            };
-            history.Id = await _storage.CreateHistoryAsync(history);
-            return history;
-        }
-
-        private async Task CompleteHistoryAsync(JobHistory history, string message)
-        {
-            history.Status = JobStatus.Completed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = message;
-            await _storage.UpdateHistoryAsync(history);
-        }
-
-        private async Task FailHistoryAsync(JobHistory history, Exception ex)
-        {
-            Log.Error(ex, "Error in PostgresProvider for {DatabaseName}", history.DatabaseName);
-            history.Status = JobStatus.Failed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = "Error: " + ex.Message;
-            history.Details = ex.ToString();
-            await _storage.UpdateHistoryAsync(history);
-        }
     }
 }

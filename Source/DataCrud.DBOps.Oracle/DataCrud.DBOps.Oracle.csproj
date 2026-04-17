@@ -4,17 +4,25 @@
     <TargetFrameworks>netstandard2.1;net48</TargetFrameworks>
     <AssemblyName>DataCrud.DBOps.Oracle</AssemblyName>
     <RootNamespace>DataCrud.DBOps.Oracle</RootNamespace>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>1.0.0</Version>
-    <Authors>DataCrud.com</Authors>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
     <Description>Oracle provider for DataCrud.DBOps. Uses Oracle Managed Data Access for commands and expdp for Data Pump exports.</Description>
-    <PackageTags>database maintenance oracle backup shrink reindex datacrud dbops</PackageTags>
+    <PackageTags>database maintenance backup devops datacrud dbops oracle</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
     <PackageReference Include="CliWrap" Version="3.6.4" />
     <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.61.3" />
+    <PackageReference Include="Npgsql" Version="8.0.3" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
@@ -30,3 +38,4 @@
   </ItemGroup>
 
 </Project>
+

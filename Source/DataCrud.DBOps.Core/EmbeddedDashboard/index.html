@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DataCrud.DBOps Dashboard</title>
+    <title>DataCrud DBOps | Premium Maintenance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -27,6 +27,7 @@
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans" 
+      @open-job-logs.window="loadJobLogs($event.detail.id)"
       x-data="{ 
         activeTab: 'history', 
         selectedDb: '', 
@@ -38,12 +39,40 @@
         config: { storageType: 'Loading...', securityEnabled: false },
         
         get activeProvider() {
-            return this.providers[this.selectedProviderIndex] || { name: 'None', displayName: 'None', capabilities: { backup: false, shrink: false, reindex: false } };
+            return this.providers[this.selectedProviderIndex] || { name: 'None', displayName: 'None', capabilities: { backup: false, shrink: false, reindex: false, reorganize: false } };
+        },
+
+        appLogs: [],
+        loadingAppLogs: false,
+
+        // Job Logs Modal State
+        isLogsModalOpen: false,
+        selectedJobId: null,
+        jobLogs: [],
+        loadingJobLogs: false,
+
+        async loadJobLogs(id) {
+            this.selectedJobId = id;
+            this.isLogsModalOpen = true;
+            this.loadingJobLogs = true;
+            try {
+                const resp = await fetch(`api/applog?jobId=${id}`);
+                this.jobLogs = await resp.json();
+            } catch (err) {
+                console.error('Failed to load job logs', err);
+                this.jobLogs = [];
+            } finally {
+                this.loadingJobLogs = false;
+            }
         },
 
         async init() {
             await this.loadConfig();
             await this.loadDatabases();
+            // Auto refresh app logs if on tab
+            setInterval(() => {
+                if(this.activeTab === 'applog') this.loadAppLogs();
+            }, 5000);
         },
 
         async loadConfig() {
@@ -107,10 +136,22 @@
                 const viewer = document.getElementById('log-viewer-scroll');
                 if (viewer) viewer.scrollTop = viewer.scrollHeight;
             });
+        },
+
+        async loadAppLogs() {
+            this.loadingAppLogs = true;
+            try {
+                const resp = await fetch('api/applog');
+                this.appLogs = await resp.json();
+            } catch (err) {
+                console.error('Failed to load app logs', err);
+            } finally {
+                this.loadingAppLogs = false;
+            }
         }
       }"
-      @htmx:before-request.window="if(event.detail.path.includes('api/jobs')) loadingJobs = true"
-      @htmx:after-request.window="if(event.detail.path.includes('api/jobs')) loadingJobs = false">
+      @htmx:before-request.window="if(event.detail?.requestConfig?.path?.includes('api/jobs')) loadingJobs = true"
+      @htmx:after-request.window="if(event.detail?.requestConfig?.path?.includes('api/jobs')) loadingJobs = false">
     
     <!-- Global Busy Overlay -->
     <div x-show="loadingDatabases || loadingJobs" 
@@ -143,16 +184,23 @@
                 </div>
                 <div class="flex items-center space-x-6">
                     <div class="flex space-x-1">
-                        <button @click="activeTab = 'history'" :class="activeTab === 'history' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">History</button>
+                        <button @click="activeTab = 'history'; setTimeout(() => { htmx.trigger('#history-table', 'load') }, 50)" :class="activeTab === 'history' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">History</button>
                         <button @click="activeTab = 'jobs'" :class="activeTab === 'jobs' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Jobs</button>
-                        <button @click="activeTab = 'logs'; loadLogs()" :class="activeTab === 'logs' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Logs</button>
+                        <button @click="activeTab = 'applog'; loadAppLogs()" :class="activeTab === 'applog' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium flex items-center">
+                            <span>Database Logs</span>
+                            <span class="ml-2 flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-sky-400 opacity-75" x-show="activeTab === 'applog'"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+                            </span>
+                        </button>
+                        <button @click="activeTab = 'logs'; loadLogs()" :class="activeTab === 'logs' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">File Logs</button>
                         <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'bg-indigo-800' : 'hover:bg-white/10'" class="px-4 py-2 rounded-md transition text-sm font-medium">Settings</button>
                     </div>
                     
                     <!-- Server Selector -->
                     <div class="relative flex items-center space-x-2 text-sm border-l border-white/20 pl-6 ml-2">
                         <span class="text-indigo-200">Server:</span>
-                        <select x-model="selectedProviderIndex" @change="changeProvider($event.target.value)" class="bg-indigo-900/50 text-white text-sm rounded-lg border border-indigo-500/30 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none">
+                        <select id="providerIdx" name="providerIndex" x-model="selectedProviderIndex" @change="changeProvider($event.target.value)" class="bg-indigo-900/50 text-white text-sm rounded-lg border border-indigo-500/30 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 outline-none">
                         <template x-for="p in providers" :key="p.index">
                             <option :value="p.index" x-text="p.displayName"></option>
                         </template>
@@ -162,7 +210,7 @@
                     <!-- DB Selector -->
                     <div class="relative flex items-center space-x-2 text-sm">
                         <span class="text-indigo-200">Database:</span>
-                        <select x-model="selectedDb" :disabled="loadingDatabases" :class="loadingDatabases ? 'opacity-50 cursor-not-allowed' : ''" class="bg-indigo-800 text-white border-none rounded-md px-3 py-1.5 focus:ring-2 focus:ring-white/50 cursor-pointer outline-none transition hover:bg-indigo-900 min-w-[150px]">
+                        <select id="dbName" name="dbName" x-model="selectedDb" :disabled="loadingDatabases" :class="loadingDatabases ? 'opacity-50 cursor-not-allowed' : ''" class="bg-indigo-800 text-white border-none rounded-md px-3 py-1.5 focus:ring-2 focus:ring-white/50 cursor-pointer outline-none transition hover:bg-indigo-900 min-w-[150px]">
                             <template x-if="loadingDatabases">
                                 <option>Loading Databases...</option>
                             </template>
@@ -198,15 +246,19 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Database</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Database</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Job Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Start Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">End Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-indigo-600 uppercase tracking-wider whitespace-nowrap">Duration</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Message</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="history-table" hx-get="api/history" hx-trigger="load" class="bg-white divide-y divide-gray-200">
-                            <tr><td colspan="5" class="px-6 py-10 text-center text-gray-400 italic">Connecting to engine...</td></tr>
+                            <tr><td colspan="9" class="px-6 py-10 text-center text-gray-400 italic">Connecting to engine...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -228,7 +280,8 @@
                         <h3 class="text-lg font-bold mb-2">Database Backup</h3>
                         <p class="text-gray-600 text-sm mb-4">Create full snapshots for the selected database and manage retention records.</p>
                         <button hx-post="api/jobs/backup" 
-                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb; event.detail.parameters['providerIndex'] = selectedProviderIndex"
+                                hx-include="#dbName, #providerIdx"
+                                hx-target="#dbops-toast"
                                 class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition shadow-sm active:transform active:scale-95">Run Backup</button>
                     </div>
 
@@ -239,9 +292,19 @@
                         </div>
                         <h3 class="text-lg font-bold mb-2">Index Maintenance</h3>
                         <p class="text-gray-600 text-sm mb-4">Reorganize or Rebuild indexes to optimize search and retrieval performance.</p>
-                        <button hx-post="api/jobs/index" 
-                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb; event.detail.parameters['providerIndex'] = selectedProviderIndex"
-                                class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition shadow-sm active:transform active:scale-95">Run Reindex</button>
+                        <div class="flex flex-col space-y-2">
+                            <button hx-post="api/jobs/index" 
+                                    hx-include="#dbName, #providerIdx"
+                                    hx-target="#dbops-toast"
+                                    class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition shadow-sm active:transform active:scale-95">Run Rebuild</button>
+                            
+                            <template x-if="activeProvider.capabilities?.reorganize">
+                                <button hx-post="api/jobs/reorganize" 
+                                        hx-include="#dbName, #providerIdx"
+                                        hx-target="#dbops-toast"
+                                        class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm active:transform active:scale-95">Run Reorganize</button>
+                            </template>
+                        </div>
                     </div>
 
                     <!-- Shrink Card -->
@@ -252,18 +315,96 @@
                         <h3 class="text-lg font-bold mb-2">Space Management</h3>
                         <p class="text-gray-600 text-sm mb-4">Shrink database files or execute cleanup commands to reclaim unused disk space.</p>
                         <button hx-post="api/jobs/shrink" 
-                                hx-on:htmx:config-request="event.detail.parameters['db'] = selectedDb; event.detail.parameters['providerIndex'] = selectedProviderIndex"
+                                hx-include="#dbName, #providerIdx"
+                                hx-target="#dbops-toast"
                                 class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition shadow-sm active:transform active:scale-95">Run Shrink</button>
+                    </div>
+
+                    <!-- Complete Maintenance Card -->
+                    <div x-show="activeProvider.capabilities && activeProvider.capabilities.backup" class="relative group overflow-hidden bg-gradient-to-br from-indigo-600 to-blue-700 p-6 rounded-xl shadow-lg border border-white/10 hover:shadow-xl transition-all duration-300">
+                        <!-- Decorative glow -->
+                        <div class="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
+                        
+                        <div class="relative z-10">
+                            <div class="w-12 h-12 bg-white/20 text-white rounded-lg flex items-center justify-center mb-4 backdrop-blur-sm">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            </div>
+                            <h3 class="text-lg font-bold text-white mb-2">Complete Secure Maintenance</h3>
+                            <p class="text-indigo-100/80 text-sm mb-6">Orchestrated run: (1) Reorganize Index, (2) Shrink Database, (3) Full Backup with Compression, (4) Retention Cleanup.</p>
+                            <button hx-post="api/jobs/complete" 
+                                    hx-include="#dbName, #providerIdx"
+                                    hx-target="#dbops-toast"
+                                    class="w-full bg-white text-indigo-900 py-3 rounded-lg font-bold hover:bg-indigo-50 transition shadow-white/10 active:transform active:scale-95 flex items-center justify-center space-x-2">
+                                <span>Shield Secure Run</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- If No Capabilities -->
-                 <div x-show="providers.length > 0 && activeProvider.capabilities && !activeProvider.capabilities.backup && !activeProvider.capabilities.shrink && !activeProvider.capabilities.reindex" class="p-10 text-center gray-500 italic bg-gray-100 rounded-xl">
+                 <div x-show="providers.length > 0 && activeProvider.capabilities && !activeProvider.capabilities.backup && !activeProvider.capabilities.shrink && !activeProvider.capabilities.reindex && !activeProvider.capabilities.reorganize" class="p-10 text-center gray-500 italic bg-gray-100 rounded-xl">
                     No supported maintenance tasks for this provider.
                 </div>
             </section>
 
-            <!-- Logs Section -->
+            <!-- Database Logs Section -->
+            <section x-show="activeTab === 'applog'" x-cloak x-transition>
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">System Activity Logs</h2>
+                        <p class="text-sm text-gray-500">Database-backed logs capturing granular background events.</p>
+                    </div>
+                    <button @click="loadAppLogs()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center shadow-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Refresh Logs
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-100">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Time</th>
+                                    <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Level</th>
+                                    <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Job ID</th>
+                                    <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Event</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <template x-for="log in appLogs" :key="log.timestamp + log.message">
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-3 whitespace-nowrap text-xs text-gray-500 font-mono" x-text="new Date(log.timestamp).toLocaleString()"></td>
+                                        <td class="px-6 py-3 whitespace-nowrap">
+                                            <span :class="{
+                                                'bg-blue-100 text-blue-700': log.level === 0 || log.level === 'Information',
+                                                'bg-amber-100 text-amber-700': log.level === 1 || log.level === 'Warning',
+                                                'bg-red-100 text-red-700': log.level === 2 || log.level === 'Error',
+                                                'bg-indigo-100 text-indigo-700': log.level === 3 || log.level === 'Trace'
+                                            }" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase" x-text="log.level"></span>
+                                        </td>
+                                        <td class="px-6 py-3 whitespace-nowrap text-xs text-indigo-600 font-mono" x-text="log.jobId ? '#' + log.jobId : '-'"></td>
+                                        <td class="px-6 py-3 text-xs text-gray-700 font-medium" x-text="log.message"></td>
+                                    </tr>
+                                </template>
+                                <template x-if="appLogs.length === 0">
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-20 text-center">
+                                            <div class="flex flex-col items-center">
+                                                <svg class="w-12 h-12 text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                <p class="text-gray-400 italic">No system logs captured yet.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- File Logs Section -->
             <section x-show="activeTab === 'logs'" x-cloak x-transition class="flex flex-col h-[70vh]">
                 <div class="flex justify-between items-center mb-6">
                     <div>
@@ -358,7 +499,10 @@
                                             <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100">Shrink</span>
                                         </template>
                                         <template x-if="activeProvider.capabilities?.reindex">
-                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100">Reindex</span>
+                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100">Rebuild Indexes</span>
+                                        </template>
+                                        <template x-if="activeProvider.capabilities?.reorganize">
+                                            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100">Reorganize Indexes</span>
                                         </template>
                                     </div>
                                 </div>
@@ -424,5 +568,96 @@
             <p class="mt-1">Built with HTMX, Alpine.js, and Modern .NET Architecture.</p>
         </footer>
     </div>
-</body>
+        <!-- Toast Container -->
+        <div id="dbops-toast" class="fixed bottom-6 right-6 z-[200] space-y-3 pointer-events-none"></div>
+
+        <script>
+            // Basic Toast Interceptor
+            document.addEventListener('htmx:afterRequest', function(evt) {
+                if (evt.detail.target.id === 'dbops-toast') {
+                    const toast = evt.detail.target.lastElementChild;
+                    if (toast) {
+                        toast.classList.add('animate-bounce');
+                        setTimeout(() => {
+                            toast.remove();
+                        }, 5000);
+                    }
+                }
+            });
+        </script>
+        <!-- Job Logs Modal -->
+        <div x-show="isLogsModalOpen" 
+             x-cloak
+             class="fixed inset-0 z-[150] overflow-y-auto" 
+             aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div x-show="isLogsModalOpen" 
+                     x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                     x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                     class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="isLogsModalOpen = false"></div>
+
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <div x-show="isLogsModalOpen" 
+                     x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full border border-gray-100">
+                    
+                    <div class="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2 bg-white/20 rounded-lg">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                            </div>
+                            <h3 class="text-lg font-bold">Execution Logs: Job #<span x-text="selectedJobId"></span></h3>
+                        </div>
+                        <button @click="isLogsModalOpen = false" class="text-white/80 hover:text-white transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+
+                    <div class="p-6 bg-gray-50 max-h-[60vh] overflow-y-auto">
+                        <div x-show="loadingJobLogs" class="flex flex-col items-center justify-center py-12 space-y-4 text-gray-400">
+                            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-10 w-10"></div>
+                            <p class="text-sm font-medium animate-pulse">Fetching process logs...</p>
+                        </div>
+
+                        <template x-if="!loadingJobLogs">
+                            <div class="space-y-3">
+                                <template x-for="log in jobLogs" :key="log.id">
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-start space-x-4 transition hover:border-indigo-200">
+                                        <div :class="log.level === 'Error' ? 'bg-red-100 text-red-600' : log.level === 'Warning' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'" 
+                                             class="p-2 rounded-lg shrink-0">
+                                            <svg x-show="log.level === 'Error'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            <svg x-show="log.level === 'Warning'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                            <svg x-show="log.level !== 'Error' && log.level !== 'Warning'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex justify-between items-start mb-1">
+                                                <span class="text-xs font-bold uppercase tracking-wider" :class="log.level === 'Error' ? 'text-red-600' : log.level === 'Warning' ? 'text-orange-600' : 'text-green-600'" x-text="log.level"></span>
+                                                <span class="text-xs text-gray-400 font-mono" x-text="new Date(log.timestamp).toLocaleString()"></span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 whitespace-pre-wrap break-words" x-text="log.message"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                                
+                                <template x-if="jobLogs.length === 0">
+                                    <div class="text-center py-10">
+                                        <p class="text-gray-400 italic">No logs associated with this session identifier.</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="px-6 py-4 bg-gray-100 border-t border-gray-200 flex justify-end">
+                        <button @click="isLogsModalOpen = false" class="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition shadow-sm">
+                            Close Viewer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </body>
 </html>

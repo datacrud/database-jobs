@@ -26,7 +26,8 @@ namespace DataCrud.DBOps.Core.Models
         Pending,
         Running,
         Completed,
-        Failed
+        Failed,
+        Cancelled
     }
 
     public enum JobType
@@ -34,7 +35,9 @@ namespace DataCrud.DBOps.Core.Models
         Backup,
         Shrink,
         IndexMaintenance,
-        Cleanup
+        Reorganize,
+        Cleanup,
+        FullMaintenance
     }
 
     public class JobHistory
@@ -47,6 +50,37 @@ namespace DataCrud.DBOps.Core.Models
         public JobStatus Status { get; set; }
         public string Message { get; set; }
         public string Details { get; set; }
+        public string Duration { get; set; }
+    }
+    public enum LogLevel
+    {
+        Verbose,
+        Debug,
+        Information,
+        Warning,
+        Error,
+        Fatal
+    }
+
+    public class AppLog
+    {
+        public int Id { get; set; }
+        public int? JobId { get; set; }
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public LogLevel Level { get; set; }
+        public string Message { get; set; }
+        public string Exception { get; set; }
+        public string Logger { get; set; }
+
+        public AppLog() { }
+
+        public AppLog(LogLevel level, string message, int? jobId = null)
+        {
+            Level = level;
+            Message = message;
+            JobId = jobId;
+            Timestamp = DateTime.UtcNow;
+        }
     }
 }
 

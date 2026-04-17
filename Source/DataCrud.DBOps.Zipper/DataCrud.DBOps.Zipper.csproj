@@ -5,8 +5,16 @@
     <AssemblyName>DataCrud.DBOps.Zipper</AssemblyName>
     <RootNamespace>DataCrud.DBOps.Zipper</RootNamespace>
     <Version>1.0.0</Version>
-    <Authors>DataCrud.com</Authors>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
     <Description>Utility library for compression operations in DataCrud.DBOps. Supports zip creation and extension methods for file paths.</Description>
+    <PackageTags>database maintenance backup devops datacrud dbops zipper compression</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
 </Project>

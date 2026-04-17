@@ -14,40 +14,38 @@ namespace DataCrud.DBOps.SqlServer
     public class SqlServerProvider : IDatabaseProvider
     {
         private readonly string _connectionString;
-        private readonly IJobStorage _storage;
         private readonly bool _discoverDatabases;
 
         public string ProviderName => "SQL Server";
         public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.All;
 
-        public SqlServerProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true)
+        public SqlServerProvider(string connectionString, string displayName = null, bool discover = true)
         {
             _connectionString = connectionString;
-            _storage = storage;
             _discoverDatabases = discover;
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory, System.Threading.CancellationToken cancellationToken = default)
         {
+            backupDirectory = Path.GetFullPath(backupDirectory);
+            if (!Directory.Exists(backupDirectory)) Directory.CreateDirectory(backupDirectory);
+
             var isPaaS = await IsPaaSAsync();
             var extension = isPaaS ? "bacpac" : "bak";
             var fileName = Path.Combine(backupDirectory, $"sql_{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{extension}");
             
-            var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting {(isPaaS ? "BACPAC export" : "backup")} to {fileName}");
-
-            try
+            cancellationToken.ThrowIfCancellationRequested();
+            var builder = new SqlConnectionStringBuilder(_connectionString);
+            
+            if (isPaaS)
             {
-                if (!Directory.Exists(backupDirectory)) Directory.CreateDirectory(backupDirectory);
-
-                var builder = new SqlConnectionStringBuilder(_connectionString);
-                
-                if (isPaaS)
-                {
-                    await ExportBacpacAsync(databaseName, fileName);
-                }
-                else
+                await ExportBacpacAsync(databaseName, fileName, cancellationToken);
+            }
+            else
+            {
+                await Task.Run(() =>
                 {
                     var server = ConnectToServer(builder);
                     var backup = new Backup
@@ -57,17 +55,12 @@ namespace DataCrud.DBOps.SqlServer
                     };
                     backup.Devices.AddDevice(fileName, DeviceType.File);
                     backup.Initialize = true;
+                    cancellationToken.ThrowIfCancellationRequested();
                     backup.SqlBackup(server);
-                }
+                });
+            }
 
-                await CompleteHistoryAsync(history, "Backup completed successfully.");
-                return fileName;
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
-            }
+            return fileName;
         }
 
         private async Task<bool> IsPaaSAsync()
@@ -83,41 +76,32 @@ namespace DataCrud.DBOps.SqlServer
             }
         }
 
-        private async Task ExportBacpacAsync(string databaseName, string fileName)
+        private async Task ExportBacpacAsync(string databaseName, string fileName, System.Threading.CancellationToken cancellationToken)
         {
             await Task.Run(() =>
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var services = new Microsoft.SqlServer.Dac.DacServices(_connectionString);
                 services.ExportBacpac(fileName, databaseName);
             });
         }
 
-        public async Task ShrinkAsync(string databaseName)
+        public async Task ShrinkAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
-            var history = await CreateHistoryAsync(databaseName, JobType.Shrink, "Starting database shrink.");
-
-            try
+            await Task.Run(() =>
             {
                 var builder = new SqlConnectionStringBuilder(_connectionString);
                 var server = ConnectToServer(builder);
                 var db = server.Databases[databaseName];
 
+                cancellationToken.ThrowIfCancellationRequested();
                 db.Shrink(10, ShrinkMethod.Default);
-
-                await CompleteHistoryAsync(history, "Shrink completed successfully.");
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
-            }
+            });
         }
 
-        public async Task ReindexAsync(string databaseName)
+        public async Task ReindexAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
-            var history = await CreateHistoryAsync(databaseName, JobType.IndexMaintenance, "Starting index maintenance.");
-
-            try
+            await Task.Run(() =>
             {
                 var builder = new SqlConnectionStringBuilder(_connectionString);
                 var server = ConnectToServer(builder);
@@ -125,17 +109,33 @@ namespace DataCrud.DBOps.SqlServer
 
                 foreach (Table table in db.Tables)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (table.IsSystemObject) continue;
                     table.RebuildIndexes(0);
                 }
+            });
+        }
 
-                await CompleteHistoryAsync(history, "Index maintenance completed successfully.");
-            }
-            catch (Exception ex)
+        public async Task ReorganizeAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
+        {
+            await Task.Run(() =>
             {
-                await FailHistoryAsync(history, ex);
-                throw;
-            }
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                var server = ConnectToServer(builder);
+                var db = server.Databases[databaseName];
+
+                foreach (Table table in db.Tables)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (table.IsSystemObject) continue;
+                    
+                    foreach (Index index in table.Indexes)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        index.Reorganize();
+                    }
+                }
+            });
         }
 
         public async Task<System.Collections.Generic.IEnumerable<string>> GetDatabasesAsync(System.Threading.CancellationToken cancellationToken = default)
@@ -150,24 +150,32 @@ namespace DataCrud.DBOps.SqlServer
                     return new[] { db };
                 }
 
-                return await Task.Run(() =>
+                return await Task.Run(async () =>
                 {
-                    var discoveryBuilder = new SqlConnectionStringBuilder(_connectionString)
-                    {
-                        ConnectTimeout = 5 // Fast fail for discovery
-                    };
-
-                    var server = ConnectToServer(discoveryBuilder, discoveryMode: true);
                     var databases = new System.Collections.Generic.List<string>();
-
-                    foreach (Database db in server.Databases)
+                    
+                    using (var conn = new SqlConnection(_connectionString))
                     {
-                        if (!db.IsSystemObject && !db.IsDatabaseSnapshot)
+                        // Use a short timeout for discovery
+                        var connectionBuilder = new SqlConnectionStringBuilder(_connectionString) { ConnectTimeout = 5 };
+                        using (var discoveryConn = new SqlConnection(connectionBuilder.ConnectionString))
                         {
-                            databases.Add(db.Name);
+                            await discoveryConn.OpenAsync(cancellationToken);
+                            var sql = "SELECT name FROM sys.databases WHERE state = 0 AND is_read_only = 0 AND name NOT IN ('master', 'model', 'msdb', 'tempdb')";
+                            using (var cmd = new SqlCommand(sql, discoveryConn))
+                            {
+                                using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+                                {
+                                    while (await reader.ReadAsync(cancellationToken))
+                                    {
+                                        databases.Add(reader.GetString(0));
+                                    }
+                                }
+                            }
                         }
                     }
 
+                    if (databases.Count == 0) databases.Add("MainDB (No Access)");
                     return (System.Collections.Generic.IEnumerable<string>)databases;
                 });
             }
@@ -202,36 +210,5 @@ namespace DataCrud.DBOps.SqlServer
             return server;
         }
 
-        private async Task<JobHistory> CreateHistoryAsync(string dbName, JobType type, string message)
-        {
-            var history = new JobHistory
-            {
-                DatabaseName = dbName,
-                JobType = type,
-                StartTime = DateTime.UtcNow,
-                Status = JobStatus.Running,
-                Message = message
-            };
-            history.Id = await _storage.CreateHistoryAsync(history);
-            return history;
-        }
-
-        private async Task CompleteHistoryAsync(JobHistory history, string message)
-        {
-            history.Status = JobStatus.Completed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = message;
-            await _storage.UpdateHistoryAsync(history);
-        }
-
-        private async Task FailHistoryAsync(JobHistory history, Exception ex)
-        {
-            Console.WriteLine($"Error in {ProviderName} for {history.DatabaseName}: {ex.Message}");
-            history.Status = JobStatus.Failed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = "Error: " + ex.Message;
-            history.Details = ex.ToString();
-            await _storage.UpdateHistoryAsync(history);
-        }
     }
 }

@@ -4,18 +4,23 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DataCrud.DBOps.SqlServer</AssemblyName>
     <RootNamespace>DataCrud.DBOps.SqlServer</RootNamespace>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>1.0.0</Version>
-    <Authors>DataCrud.com</Authors>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
     <Description>SQL Server provider for DataCrud.DBOps. Includes Backup, Shrink, and Reindex operations using SMO.</Description>
-    <PackageTags>database maintenance sqlserver backup shrink reindex datacrud dbops</PackageTags>
+    <PackageTags>database maintenance backup devops datacrud dbops sqlserver</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
-    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="172.61.0" />
-    <PackageReference Include="Microsoft.SqlServer.DacFx" Version="162.5.57" />
+    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="181.19.0" />
+    <PackageReference Include="Microsoft.SqlServer.DacFx" Version="170.3.93" />
     <PackageReference Include="Dapper" Version="2.1.35" />
   </ItemGroup>
 

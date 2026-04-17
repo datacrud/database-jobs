@@ -10,11 +10,14 @@ namespace DataCrud.DBOps.Core.Storage
     public class LiteDbJobStorage : IJobStorage
     {
         private readonly string _connectionString;
-        private const string CollectionName = "job_history";
+        private const string HistoryCollection = "job_history";
+        private const string LogCollection = "system_logs";
 
         public LiteDbJobStorage(string connectionString)
         {
-            _connectionString = connectionString ?? "jobs_dbops.db";
+            var path = connectionString ?? "jobs_dbops.db";
+            // Ensure Connection=Shared for multi-process/multi-instance stability
+            _connectionString = path.Contains(";") ? path : $"Filename={path};Connection=shared";
         }
 
         public Task InitializeAsync(string connectionString)
@@ -27,7 +30,7 @@ namespace DataCrud.DBOps.Core.Storage
         {
             using (var db = new LiteDatabase(_connectionString))
             {
-                var col = db.GetCollection<JobHistory>(CollectionName);
+                var col = db.GetCollection<JobHistory>(HistoryCollection);
                 var id = col.Insert(history);
                 return Task.FromResult(id.AsInt32);
             }
@@ -37,7 +40,7 @@ namespace DataCrud.DBOps.Core.Storage
         {
             using (var db = new LiteDatabase(_connectionString))
             {
-                var col = db.GetCollection<JobHistory>(CollectionName);
+                var col = db.GetCollection<JobHistory>(HistoryCollection);
                 col.Update(history);
                 return Task.CompletedTask;
             }
@@ -47,7 +50,7 @@ namespace DataCrud.DBOps.Core.Storage
         {
             using (var db = new LiteDatabase(_connectionString))
             {
-                var col = db.GetCollection<JobHistory>(CollectionName);
+                var col = db.GetCollection<JobHistory>(HistoryCollection);
                 var logs = col.Query()
                     .OrderByDescending(x => x.StartTime)
                     .Limit(top)
@@ -60,9 +63,39 @@ namespace DataCrud.DBOps.Core.Storage
         {
             using (var db = new LiteDatabase(_connectionString))
             {
-                var col = db.GetCollection<JobHistory>(CollectionName);
+                var col = db.GetCollection<JobHistory>(HistoryCollection);
                 var log = col.FindById(id);
                 return Task.FromResult(log);
+            }
+        }
+
+        public Task AddLogAsync(AppLog log)
+        {
+            using (var db = new LiteDatabase(_connectionString))
+            {
+                var col = db.GetCollection<AppLog>(LogCollection);
+                col.Insert(log);
+                return Task.CompletedTask;
+            }
+        }
+
+        public Task<IEnumerable<AppLog>> GetLogsAsync(int limit = 100, int? jobId = null)
+        {
+            using (var db = new LiteDatabase(_connectionString))
+            {
+                var col = db.GetCollection<AppLog>(LogCollection);
+                var query = col.Query();
+
+                if (jobId.HasValue)
+                {
+                    query = query.Where(x => x.JobId == jobId.Value);
+                }
+
+                var logs = query
+                    .OrderByDescending(x => x.Timestamp)
+                    .Limit(limit)
+                    .ToList();
+                return Task.FromResult<IEnumerable<AppLog>>(logs);
             }
         }
     }

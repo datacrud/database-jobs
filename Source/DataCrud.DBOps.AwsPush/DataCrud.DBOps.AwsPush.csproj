@@ -4,12 +4,26 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DataCrud.DBOps.AwsPush</AssemblyName>
     <RootNamespace>DataCrud.DBOps.AwsPush</RootNamespace>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Version>1.0.0</Version>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
+    <Description>AWS S3 upload provider for DataCrud.DBOps. Enables pushing backups to Amazon S3 buckets.</Description>
+    <PackageTags>database maintenance backup devops datacrud dbops aws s3</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" Version="3.7.305.18" />
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.61.3" />
+    <PackageReference Include="Npgsql" Version="8.0.3" />
     <PackageReference Include="Serilog" Version="3.1.1" />
+    <PackageReference Include="System.Memory.Data" Version="6.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,3 +31,4 @@
   </ItemGroup>
 
 </Project>
+

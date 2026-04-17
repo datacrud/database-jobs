@@ -4,18 +4,26 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DataCrud.DBOps.MySql</AssemblyName>
     <RootNamespace>DataCrud.DBOps.MySql</RootNamespace>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>1.0.0</Version>
-    <Authors>DataCrud.com</Authors>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
     <Description>MySQL provider for DataCrud.DBOps. Uses MySqlConnector for commands and MySqlBackup.NET for managed backups.</Description>
-    <PackageTags>database maintenance mysql backup shrink reindex datacrud dbops</PackageTags>
+    <PackageTags>database maintenance backup devops datacrud dbops mysql</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.61.3" />
     <PackageReference Include="MySqlConnector" Version="2.2.7" />
     <PackageReference Include="MySqlBackup.Net.MySqlConnector" Version="2.3.8" />
     <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="Npgsql" Version="8.0.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,3 +31,4 @@
   </ItemGroup>
 
 </Project>
+

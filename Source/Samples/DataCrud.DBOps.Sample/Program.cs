@@ -26,28 +26,28 @@ builder.Services.AddDBOps(options =>
     options.Storage = storage;
 
     // 0. Mock Provider - ALWAYS HERE for reliable local testing without infra
-    options.Providers.Add(new MockProvider(storage, "Mock Infrastructure (Test Only)"));
+    options.Providers.Add(new MockProvider("Mock Infrastructure (Test Only)"));
 
     // 1. SQL Server - Full Discovery Mode
     // Try LocalDB first as it's common for developers
     var sqlConn = GetValidConnectionString("SqlServer", "Server=.\\SQLExpress;Database=master;Trusted_Connection=True;TrustServerCertificate=True;");
-    options.Providers.Add(new SqlServerProvider(sqlConn, storage, "SQL Express Server", discover: true));
+    options.Providers.Add(new SqlServerProvider(sqlConn, "SQL Express Server", discover: true));
     
     // 2. PostgreSQL - Full Discovery Mode
-    var pgConn = GetValidConnectionString("Postgres", "Host=localhost;Database=postgres;Username=postgres;Password=password");
-    options.Providers.Add(new PostgresProvider(pgConn, storage, "Local PostgreSQL", discover: true));
+    var pgConn = GetValidConnectionString("Postgres", "Host=localhost;Database=postgres;Username=postgres;Password=postgres");
+    options.Providers.Add(new PostgresProvider(pgConn, "Local PostgreSQL", discover: true));
 
     // 3. MySQL Provider
     var mySqlConn = GetValidConnectionString("MySql", "Server=localhost;Database=mysql;Uid=root;Pwd=password;");
-    options.Providers.Add(new MySqlProvider(mySqlConn, storage, "Local MySQL", discover: true));
+    options.Providers.Add(new MySqlProvider(mySqlConn, "Local MySQL", discover: true));
 
     // 4. MongoDB Provider
     var mongoConn = GetValidConnectionString("Mongo", "mongodb://localhost:27017");
-    options.Providers.Add(new MongoDbProvider(mongoConn, storage, "Local MongoDB", discover: true));
+    options.Providers.Add(new MongoDbProvider(mongoConn, "Local MongoDB", discover: true));
 
     // 5. Oracle Provider
     var oracleConn = GetValidConnectionString("Oracle", "Data Source=localhost:1521/XEPDB1;User Id=system;Password=password;");
-    options.Providers.Add(new OracleProvider(oracleConn, storage, "Oracle Instance", discover: true));
+    options.Providers.Add(new OracleProvider(oracleConn, "Oracle Instance", discover: true));
 
     options.Security.Enabled = false;
 });
@@ -78,7 +78,7 @@ namespace DataCrud.DBOps.Sample
             Console.WriteLine("------------------------------------------");
 
             IJobStorage storage = new LiteDbJobStorage("jobs_dbops.db");
-            var sqlProvider = new SqlServerProvider(connectionString: "Server=(localdb)\\mssqllocaldb;Database=master;Trusted_Connection=True;", storage: storage);
+            var sqlProvider = new SqlServerProvider(connectionString: "Server=(localdb)\\mssqllocaldb;Database=master;Trusted_Connection=True;");
 
             // Demonstration of the Maintenance Manager on .NET Framework
             var manager = new MaintenanceManager(storage: storage, provider: sqlProvider);

@@ -3,11 +3,24 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>DataCrud.DBOps.Backup</RootNamespace>
     <AssemblyName>DataCrud.DBOps.Backup</AssemblyName>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Version>1.0.0</Version>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
+    <Description>Cloud-integrated backup service for DataCrud.DBOps. Supports Azure and AWS storage integration.</Description>
+    <PackageTags>database maintenance backup devops datacrud dbops cloud azure aws</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.61.3" />
     <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="172.61.0" />
+    <PackageReference Include="Npgsql" Version="8.0.3" />
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
   </ItemGroup>
@@ -17,5 +30,6 @@
     <ProjectReference Include="..\DataCrud.DBOps.AwsPush\DataCrud.DBOps.AwsPush.csproj" />
     <ProjectReference Include="..\DataCrud.DBOps.Shared\DataCrud.DBOps.Shared.csproj" />
     <ProjectReference Include="..\DataCrud.DBOps.Zipper\DataCrud.DBOps.Zipper.csproj" />
+    <ProjectReference Include="..\DataCrud.DBOps.Core\DataCrud.DBOps.Core.csproj" />
   </ItemGroup>
 </Project>

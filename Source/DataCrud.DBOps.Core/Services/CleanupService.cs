@@ -39,8 +39,8 @@ namespace DataCrud.DBOps.Core.Services
                     return;
                 }
 
-                var files = Directory.GetFiles(backupDirectory, "*.bak")
-                    .Concat(Directory.GetFiles(backupDirectory, "*.zip"));
+                var extensions = new[] { "*.bak", "*.sql", "*.dmp", "*.bacpac", "*.zip" };
+                var files = extensions.SelectMany(ext => Directory.GetFiles(backupDirectory, ext)).ToList();
 
                 int deletedCount = 0;
                 foreach (var file in files)

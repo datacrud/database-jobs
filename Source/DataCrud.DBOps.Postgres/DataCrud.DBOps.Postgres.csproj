@@ -4,15 +4,22 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DataCrud.DBOps.Postgres</AssemblyName>
     <RootNamespace>DataCrud.DBOps.Postgres</RootNamespace>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>1.0.0</Version>
-    <Authors>DataCrud.com</Authors>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
     <Description>Postgres provider for DataCrud.DBOps. Uses Npgsql for commands and native pg_dump for backups.</Description>
-    <PackageTags>database maintenance postgres backup shrink reindex datacrud dbops</PackageTags>
+    <PackageTags>database maintenance backup devops datacrud dbops postgres</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.61.3" />
     <PackageReference Include="Npgsql" Version="8.0.3" />
     <PackageReference Include="CliWrap" Version="3.6.4" />
     <PackageReference Include="Dapper" Version="2.1.35" />
@@ -23,3 +30,4 @@
   </ItemGroup>
 
 </Project>
+

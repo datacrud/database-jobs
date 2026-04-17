@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using CliWrap;
 using DataCrud.DBOps.Core.Models;
 using DataCrud.DBOps.Core.Providers;
-using DataCrud.DBOps.Core.Storage;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Serilog;
@@ -14,86 +13,62 @@ namespace DataCrud.DBOps.MongoDb
     public class MongoDbProvider : IDatabaseProvider
     {
         private readonly string _connectionString;
-        private readonly IJobStorage _storage;
         private readonly bool _discoverDatabases;
 
         public string ProviderName => "MongoDB";
         public string DisplayName { get; }
-        public ProviderCapabilities Capabilities => ProviderCapabilities.Backup | ProviderCapabilities.Shrink;
+        public ProviderCapabilities Capabilities => ProviderCapabilities.Backup | ProviderCapabilities.Reindex | ProviderCapabilities.Reorganize;
 
-        public MongoDbProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true)
+        public MongoDbProvider(string connectionString, string displayName = null, bool discover = true)
         {
             _connectionString = connectionString;
-            _storage = storage;
             _discoverDatabases = discover;
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory, System.Threading.CancellationToken cancellationToken = default)
         {
             var fileName = Path.Combine(backupDirectory, $"{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}");
-            var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting MongoDB backup (mongodump) to {fileName}");
+            
+            if (!Directory.Exists(backupDirectory)) Directory.CreateDirectory(backupDirectory);
 
-            try
-            {
-                if (!Directory.Exists(backupDirectory)) Directory.CreateDirectory(backupDirectory);
+            // CliWrap to run mongodump
+            var result = await Cli.Wrap("mongodump")
+                .WithArguments(args => args
+                    .Add("--uri").Add(_connectionString)
+                    .Add("--db").Add(databaseName)
+                    .Add("--out").Add(backupDirectory)
+                )
+                .ExecuteAsync(cancellationToken);
 
-                // CliWrap to run mongodump
-                // Example: mongodump --uri="mongodb://user:pass@host:port" --db=dbname --out=backupdir
-                var result = await Cli.Wrap("mongodump")
-                    .WithArguments(args => args
-                        .Add("--uri").Add(_connectionString)
-                        .Add("--db").Add(databaseName)
-                        .Add("--out").Add(backupDirectory)
-                    )
-                    .ExecuteAsync();
-
-                // mongodump creates a folder per DB. 
-                // In a production scenario, we might want to zip this.
-                await CompleteHistoryAsync(history, $"MongoDB backup completed. Data saved to {fileName}");
-                return fileName;
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
-            }
+            return fileName;
         }
 
-        public async Task ShrinkAsync(string databaseName)
+        public async Task ShrinkAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
-            var history = await CreateHistoryAsync(databaseName, JobType.Shrink, "Starting MongoDB Compact operation.");
-
-            try
+            var client = new MongoClient(_connectionString);
+            var db = client.GetDatabase(databaseName);
+            
+            // MongoDB 'compact' command reclaims space in a collection.
+            var collections = await db.ListCollectionNames(cancellationToken: cancellationToken).ToListAsync(cancellationToken);
+            
+            foreach (var collectionName in collections)
             {
-                var client = new MongoClient(_connectionString);
-                var db = client.GetDatabase(databaseName);
-                
-                // MongoDB 'compact' command reclaims space in a collection.
-                // We'll iterate through all collections.
-                var collections = await db.ListCollectionNames().ToListAsync();
-                
-                foreach (var collectionName in collections)
-                {
-                    // compact requires admin/db privileges
-                    var command = new BsonDocument { { "compact", collectionName } };
-                    await db.RunCommandAsync<BsonDocument>(command);
-                }
-
-                await CompleteHistoryAsync(history, "MongoDB Compact operation completed for all collections.");
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
+                cancellationToken.ThrowIfCancellationRequested();
+                var command = new BsonDocument { { "compact", collectionName } };
+                await db.RunCommandAsync<BsonDocument>(command, cancellationToken: cancellationToken);
             }
         }
 
-        public Task ReindexAsync(string databaseName)
+        public Task ReorganizeAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
+        {
+            // MongoDB with WiredTiger engine manages storage reorganization internaly.
+            return Task.CompletedTask;
+        }
+
+        public Task ReindexAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
             // MongoDB 'reIndex' is legacy and deprecated in recent versions.
-            // Modern MongoDB reindexing involves rebuilding indexes explicitly.
-            // For now, we'll mark it as Not Supported by the provider capabilities.
             return Task.CompletedTask;
         }
 
@@ -128,41 +103,9 @@ namespace DataCrud.DBOps.MongoDb
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error fetching MongoDB databases: {ex.Message}");
+                Log.Error(ex, "Error fetching MongoDB databases");
                 return new string[] { "MainDB (Offline)" };
             }
-        }
-
-        private async Task<JobHistory> CreateHistoryAsync(string dbName, JobType type, string message)
-        {
-            var history = new JobHistory
-            {
-                DatabaseName = dbName,
-                JobType = type,
-                StartTime = DateTime.UtcNow,
-                Status = JobStatus.Running,
-                Message = message
-            };
-            history.Id = await _storage.CreateHistoryAsync(history);
-            return history;
-        }
-
-        private async Task CompleteHistoryAsync(JobHistory history, string message)
-        {
-            history.Status = JobStatus.Completed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = message;
-            await _storage.UpdateHistoryAsync(history);
-        }
-
-        private async Task FailHistoryAsync(JobHistory history, Exception ex)
-        {
-            Log.Error(ex, "Error in MongoDbProvider for {DatabaseName}", history.DatabaseName);
-            history.Status = JobStatus.Failed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = "Error: " + ex.Message;
-            history.Details = ex.ToString();
-            await _storage.UpdateHistoryAsync(history);
         }
     }
 }

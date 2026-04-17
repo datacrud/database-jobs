@@ -6,12 +6,15 @@
     <RootNamespace>DataCrud.DBOps.AspNet</RootNamespace>
     <AssemblyName>DataCrud.DBOps.AspNet</AssemblyName>
     <Version>1.0.0</Version>
-    <Authors>Sabbir Ahamed</Authors>
-    <Description>OWIN Middleware for DataCrud.DBOps. Provides an embedded self-hosted dashboard for SQL Server maintenance (Backups, Shrink, Index Maintenance) for legacy .NET Framework applications. Supports .NET 4.7 and up.</Description>
-    <PackageTags>sql-server;maintenance;owin;aspnet;dashboard;htmx;alpinejs</PackageTags>
+    <Authors>DataCrud</Authors>
+    <Company>DataCrud</Company>
+    <Description>OWIN Middleware for DataCrud.DBOps. Provides an embedded self-hosted dashboard for database maintenance (Backups, Shrink, Index Maintenance) for legacy .NET Framework applications. Supports .NET 4.7 and up.</Description>
+    <PackageTags>database maintenance backup devops datacrud dbops owin aspnet dashboard</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/SabbirAhamed/database-jobs</PackageProjectUrl>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageProjectUrl>https://github.com/datacrud/datacrud-db-ops</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/datacrud/datacrud-db-ops</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
@@ -20,8 +23,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.61.3" />
     <PackageReference Include="Microsoft.Owin" Version="4.2.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Npgsql" Version="8.0.3" />
+    <PackageReference Include="System.Memory.Data" Version="6.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="6.0.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">
@@ -29,4 +37,3 @@
   </ItemGroup>
 
 </Project>
-

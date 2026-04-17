@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using CliWrap;
 using DataCrud.DBOps.Core.Models;
 using DataCrud.DBOps.Core.Providers;
@@ -15,7 +16,6 @@ namespace DataCrud.DBOps.Oracle
     public class OracleProvider : IDatabaseProvider
     {
         private readonly string _connectionString;
-        private readonly IJobStorage _storage;
         private readonly string _expdpPath;
         private readonly bool _discoverDatabases;
 
@@ -23,99 +23,83 @@ namespace DataCrud.DBOps.Oracle
         public string DisplayName { get; }
         public ProviderCapabilities Capabilities => ProviderCapabilities.All;
 
-        public OracleProvider(string connectionString, IJobStorage storage, string displayName = null, bool discover = true, string expdpPath = "expdp")
+        public OracleProvider(string connectionString, string displayName = null, bool discover = true, string expdpPath = "expdp")
         {
             _connectionString = connectionString;
-            _storage = storage;
             _expdpPath = expdpPath;
             _discoverDatabases = discover;
             DisplayName = displayName ?? ProviderName;
         }
 
-        public async Task<string> BackupAsync(string databaseName, string backupDirectory)
+        public async Task<string> BackupAsync(string databaseName, string backupDirectory, System.Threading.CancellationToken cancellationToken = default)
         {
             var fileName = $"ora_{databaseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.dmp";
             var fullPath = Path.Combine(backupDirectory, fileName);
-            var history = await CreateHistoryAsync(databaseName, JobType.Backup, $"Starting Oracle Data Pump export (expdp). Output: {fileName}");
 
-            try
+            var builder = new OracleConnectionStringBuilder(_connectionString);
+            
+            // expdp usually requires a DIRECTORY object defined in Oracle.
+            // We assume DATA_PUMP_DIR is configured on the server.
+            var result = await Cli.Wrap(_expdpPath)
+                .WithArguments(args => args
+                    .Add($"{builder.UserID}/{builder.Password}@{builder.DataSource}")
+                    .Add($"DUMPFILE={fileName}")
+                    .Add($"DIRECTORY=DATA_PUMP_DIR")
+                    .Add($"SCHEMAS={builder.UserID}")
+                )
+                .ExecuteAsync(cancellationToken);
+
+            return fullPath; // Return the path where we expect it to be
+        }
+
+        public async Task ShrinkAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
+        {
+            using (var conn = new OracleConnection(_connectionString))
             {
-                var builder = new OracleConnectionStringBuilder(_connectionString);
+                await conn.OpenAsync();
                 
-                // expdp usually requires a DIRECTORY object defined in Oracle.
-                // We assume DATA_PUMP_DIR is configured on the server.
-                var result = await Cli.Wrap(_expdpPath)
-                    .WithArguments(args => args
-                        .Add($"{builder.UserID}/{builder.Password}@{builder.DataSource}")
-                        .Add($"DUMPFILE={fileName}")
-                        .Add($"DIRECTORY=DATA_PUMP_DIR")
-                        .Add($"SCHEMAS={builder.UserID}")
-                    )
-                    .ExecuteAsync();
-
-                await CompleteHistoryAsync(history, $"Oracle export completed successfully. DUMPFILE: {fileName}");
-                return fullPath; // Return the path where we expect it to be
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
+                // Enable row movement and shrink space for all tables in the schema
+                var tables = await conn.QueryAsync<string>(new CommandDefinition("SELECT table_name FROM user_tables", cancellationToken: cancellationToken));
+                
+                foreach (var table in tables)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await conn.ExecuteAsync(new CommandDefinition($"ALTER TABLE {table} ENABLE ROW MOVEMENT", cancellationToken: cancellationToken));
+                    await conn.ExecuteAsync(new CommandDefinition($"ALTER TABLE {table} SHRINK SPACE", cancellationToken: cancellationToken));
+                }
             }
         }
 
-        public async Task ShrinkAsync(string databaseName)
+        public async Task ReindexAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
-            var history = await CreateHistoryAsync(databaseName, JobType.Shrink, "Starting segment shrink operation.");
-
-            try
+            using (var conn = new OracleConnection(_connectionString))
             {
-                using (var conn = new OracleConnection(_connectionString))
+                await conn.OpenAsync();
+                
+                var indexes = await conn.QueryAsync<string>(new CommandDefinition("SELECT index_name FROM user_indexes WHERE index_type = 'NORMAL'", cancellationToken: cancellationToken));
+                
+                foreach (var index in indexes)
                 {
-                    await conn.OpenAsync();
-                    
-                    // Enable row movement and shrink space for all tables in the schema
-                    var tables = await conn.QueryAsync<string>("SELECT table_name FROM user_tables");
-                    
-                    foreach (var table in tables)
-                    {
-                        await conn.ExecuteAsync($"ALTER TABLE {table} ENABLE ROW MOVEMENT");
-                        await conn.ExecuteAsync($"ALTER TABLE {table} SHRINK SPACE");
-                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await conn.ExecuteAsync(new CommandDefinition($"ALTER INDEX {index} REBUILD ONLINE", cancellationToken: cancellationToken));
                 }
-
-                await CompleteHistoryAsync(history, "Oracle segments shrunk successfully.");
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
             }
         }
 
-        public async Task ReindexAsync(string databaseName)
+        public async Task ReorganizeAsync(string databaseName, System.Threading.CancellationToken cancellationToken = default)
         {
-            var history = await CreateHistoryAsync(databaseName, JobType.IndexMaintenance, "Starting index rebuild operation.");
-
-            try
+            using (var conn = new OracleConnection(_connectionString))
             {
-                using (var conn = new OracleConnection(_connectionString))
+                await conn.OpenAsync();
+                
+                var indexes = await conn.QueryAsync<string>(new CommandDefinition("SELECT index_name FROM user_indexes WHERE index_type = 'NORMAL'", cancellationToken: cancellationToken));
+                
+                foreach (var index in indexes)
                 {
-                    await conn.OpenAsync();
-                    
-                    var indexes = await conn.QueryAsync<string>("SELECT index_name FROM user_indexes WHERE index_type = 'NORMAL'");
-                    
-                    foreach (var index in indexes)
-                    {
-                        await conn.ExecuteAsync($"ALTER INDEX {index} REBUILD ONLINE");
-                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    // COALESCE is the Oracle equivalent of reorganizing (merging leaf blocks)
+                    await conn.ExecuteAsync(new CommandDefinition($"ALTER INDEX {index} COALESCE", cancellationToken: cancellationToken));
                 }
-
-                await CompleteHistoryAsync(history, "Oracle indexes rebuilt successfully.");
-            }
-            catch (Exception ex)
-            {
-                await FailHistoryAsync(history, ex);
-                throw;
             }
         }
 
@@ -154,36 +138,5 @@ namespace DataCrud.DBOps.Oracle
             }
         }
 
-        private async Task<JobHistory> CreateHistoryAsync(string dbName, JobType type, string message)
-        {
-            var history = new JobHistory
-            {
-                DatabaseName = dbName,
-                JobType = type,
-                StartTime = DateTime.UtcNow,
-                Status = JobStatus.Running,
-                Message = message
-            };
-            history.Id = await _storage.CreateHistoryAsync(history);
-            return history;
-        }
-
-        private async Task CompleteHistoryAsync(JobHistory history, string message)
-        {
-            history.Status = JobStatus.Completed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = message;
-            await _storage.UpdateHistoryAsync(history);
-        }
-
-        private async Task FailHistoryAsync(JobHistory history, Exception ex)
-        {
-            Log.Error(ex, "Error in OracleProvider for {DatabaseName}", history.DatabaseName);
-            history.Status = JobStatus.Failed;
-            history.EndTime = DateTime.UtcNow;
-            history.Message = "Error: " + ex.Message;
-            history.Details = ex.ToString();
-            await _storage.UpdateHistoryAsync(history);
-        }
     }
 }

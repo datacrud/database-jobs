@@ -1,0 +1,17 @@
+<Project>
+  <!-- Force standardization of troublesome packages to resolve MSB3277 conflicts -->
+  <ItemGroup>
+    <PackageReference Update="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Update="Microsoft.SqlServer.SqlManagementObjects" Version="181.19.0" />
+    <PackageReference Update="Microsoft.SqlServer.DacFx" Version="170.3.93" />
+    <PackageReference Update="System.Memory.Data" Version="6.0.0" />
+    <PackageReference Update="System.Security.Cryptography.ProtectedData" Version="6.0.0" />
+    <PackageReference Update="Microsoft.Identity.Client" Version="4.61.3" />
+    <PackageReference Update="Microsoft.Identity.Client.Extensions.Msal" Version="4.61.3" />
+    <PackageReference Update="Azure.Identity" Version="1.11.4" />
+    <PackageReference Update="Azure.Core" Version="1.38.0" />
+    <PackageReference Update="System.Text.Json" Version="8.0.5" />
+    <PackageReference Update="System.ClientModel" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+
