@@ -74,13 +74,25 @@ builder.Services.AddDBOps(options =>
 {
     options.Storage = new LiteDbJobStorage("history.db");
 
-    // Add multiple SQL Servers
-    options.Providers.Add(new SqlServerProvider("ConnString1", "Production ERP"));
-    options.Providers.Add(new SqlServerProvider("ConnString2", "Legacy CRM"));
+    // --- Zipping Configuration ---
+    options.EnableZipping = true; // Set false to skip compression (default: true)
+    options.BackupPath = "C:\\Backups"; // Custom local staging directory
 
-    // Mix different database types
+    // --- Azure Storage Configuration ---
+    // Backups will be pushed to the 'backups' container in 'databases/' folder
+    options.PushToAzure = true;
+    options.AzureStorageConnectionString = "DefaultEndpointsProtocol=https;AccountName=...";
+
+    // --- AWS S3 Configuration ---
+    options.PushToAws = true;
+    options.AwsAccessKey = "YOUR-ACCESS-KEY";
+    options.AwsSecretKey = "YOUR-SECRET-KEY";
+    options.AwsBucketName = "your-bucket-name";
+    options.AwsRegion = "us-east-1";
+
+    // --- Multi-Server Registration ---
+    options.Providers.Add(new SqlServerProvider("ConnString1", "Production ERP"));
     options.Providers.Add(new PostgresProvider("PostgresConn", "Analytics App"));
-    options.Providers.Add(new MySqlProvider("MySqlConn", "Marketing Site"));
 
     // Enable "Discovery Mode" to automatically find all DBs on a server
     options.Providers.Add(new SqlServerProvider("ServerConn", "Main Cluster", discover: true));
